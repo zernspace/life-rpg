@@ -13,8 +13,12 @@ const REWARD_MAP: Record<DifficultyType, { xp: number; gold: number }> = {
 export async function createTask(formData: FormData) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Unauthorized' };
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return { error: 'Authentication session expired. Please sign in again.' };
+    }
+
     const title = (formData.get('title') as string || '').trim();
     if (!title) return { error: 'Title is required' };
 
@@ -22,15 +26,28 @@ export async function createTask(formData: FormData) {
     const rewards = REWARD_MAP[diff] || REWARD_MAP.Medium;
 
     const { error } = await supabase.from('tasks').insert({
-      user_id: user.id, title, description: formData.get('description') as string || '',
-      category: formData.get('category') as AttributeType, difficulty: diff,
-      xp_reward: rewards.xp, gold_reward: rewards.gold,
+      user_id: user.id,
+      title,
+      description: (formData.get('description') as string) || '',
+      category: formData.get('category') as AttributeType,
+      difficulty: diff,
+      xp_reward: rewards.xp,
+      gold_reward: rewards.gold,
+      completed: false
     });
-    if (error) return { error: error.message };
-    revalidatePath('/'); return { success: true };
-  } catch (err: any) { return { error: err.message }; }
-}
 
+    if (error) {
+      console.error('Supabase Task Insert Error:', error.message);
+      return { error: error.message };
+    }
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: any) {
+    console.error('createTask Exception:', err);
+    return { error: err.message || 'Operation timed out. Please retry.' };
+  }
+}
 export async function updateTask(taskId: string, title: string, description: string, category: AttributeType, difficulty: DifficultyType) {
   try {
     const supabase = await createClient();
