@@ -759,30 +759,51 @@ export default function LifeRPGApp() {
                   e.preventDefault();
                   const formData = new FormData(e.currentTarget);
                   
+                  const title = formData.get('title') as string;
+                  const description = formData.get('description') as string;
+                  const category = formData.get('category') as any;
+                  const difficulty = formData.get('difficulty') as any;
+                
+                  // Calculate rewards locally
+                  const xpReward = difficulty === 'Easy' ? 15 : difficulty === 'Medium' ? 30 : difficulty === 'Hard' ? 60 : 100;
+                  const goldReward = difficulty === 'Easy' ? 5 : difficulty === 'Medium' ? 10 : difficulty === 'Hard' ? 20 : 40;
+                
                   const tempTask = {
                     id: 'temp-' + Date.now(),
-                    title: formData.get('title') as string,
-                    description: formData.get('description') as string,
-                    category: formData.get('category') as any,
-                    difficulty: formData.get('difficulty') as any,
+                    title,
+                    description,
+                    category,
+                    difficulty,
                     completed: false,
-                    xp_reward: 10,
-                    gold_reward: 5,
+                    xp_reward: xpReward,
+                    gold_reward: goldReward,
                     user_id: user.id,
                     created_at: new Date().toISOString()
                   };
                 
+                  // Instantly show on UI and reset filter
                   setTasks(prevTasks => [tempTask, ...prevTasks]);
+                  setSelectedCategory('All');
                   setIsAddModalOpen(false);
                 
-                  const res = await createTask(formData);
-                  if (res?.error) {
-                    showFeedback(res.error);
+                  // Write directly from browser to Supabase (bypasses Vercel server limits)
+                  const { error } = await supabase.from('tasks').insert({
+                    user_id: user.id,
+                    title,
+                    description,
+                    category,
+                    difficulty,
+                    xp_reward: xpReward,
+                    gold_reward: goldReward,
+                    completed: false
+                  });
+                
+                  if (error) {
+                    showFeedback(error.message);
                   }
-                  
-                  setTimeout(async () => {
-                    await loadData();
-                  }, 500);
+                
+                  // Sync data
+                  await loadData();
                 }} className="space-y-4 font-mono text-xs font-bold">
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
