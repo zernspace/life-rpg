@@ -50,7 +50,6 @@ export default function LifeRPGApp() {
   const supabase = useMemo(() => createClient(), []);
   
   const [user, setUser] = useState<any>(null);
-  // Extend profile type locally to support new buff columns
   const [profile, setProfile] = useState<(Profile & { active_buff?: string, buff_expires_at?: string }) | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
@@ -85,7 +84,6 @@ export default function LifeRPGApp() {
 
   const showFeedback = (msg: string) => { setFeedbackMessage(msg); setTimeout(() => setFeedbackMessage(null), 3500); };
 
-  // --- AUDIO EFFECTS ---
   const playChime = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -108,7 +106,6 @@ export default function LifeRPGApp() {
     } catch (e) {}
   };
 
-  // Global Button Click Sound Event
   useEffect(() => {
     const playClick = () => {
       try {
@@ -149,7 +146,6 @@ export default function LifeRPGApp() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Calculate active buff timer
   useEffect(() => {
     if (!profile?.buff_expires_at) { setBuffTimeLeft(null); return; }
     
@@ -163,7 +159,6 @@ export default function LifeRPGApp() {
     return () => clearInterval(interval);
   }, [profile?.buff_expires_at]);
 
-  // Focus Timer Protocol
   useEffect(() => {
     let interval: any = null;
     if (isTimerRunning && timerSeconds > 0) {
@@ -198,7 +193,7 @@ export default function LifeRPGApp() {
     playChime(); confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
     const res = await completeTask(taskId, focusTime);
     if (res?.error) { showFeedback(res.error); }
-    else { showFeedback(buffTimeLeft ? `Protocol Cleared (BUFF ACTIVE)!` : `Protocol Cleared!`); }
+    else { showFeedback(buffTimeLeft ? `Quest Completed (BUFF ACTIVE)!` : `Quest Completed!`); }
     await loadData();
   };
 
@@ -212,7 +207,7 @@ export default function LifeRPGApp() {
   const handleActivate = async (itemId: string) => {
     const res = await activateConsumable(itemId);
     if (res?.error) { showFeedback(res.error); }
-    else { playPowerUp(); confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 } }); showFeedback('Protocol Activated!'); }
+    else { playPowerUp(); confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 } }); showFeedback('Item Activated!'); }
     await loadData();
   };
 
@@ -307,7 +302,7 @@ export default function LifeRPGApp() {
               <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
                 <Clock className="w-8 h-8 text-cyan-500 mb-4" />
                 <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Focus Protocols</h3>
-                <p className={`text-sm ${textMuted}`}>Lock in with built-in Pomodoro timers. Engage deep work sessions to earn multiplier XP and Credits.</p>
+                <p className={`text-sm ${textMuted}`}>Lock in with built-in Pomodoro timers. Engage deep work sessions to earn multiplier XP and Currency.</p>
               </div>
               <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
                 <Hexagon className="w-8 h-8 text-cyan-500 mb-4" />
@@ -443,11 +438,15 @@ export default function LifeRPGApp() {
               <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border animate-pulse ${
                 profile.active_buff === 'xp_potion' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' :
                 profile.active_buff === 'power_rush' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
-                'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                profile.active_buff === 'lucky_coin' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' :
+                'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
               }`}>
                 <Timer className="w-4 h-4" />
                 <span className="text-[10px] tracking-widest uppercase font-black">
-                  {profile.active_buff === 'xp_potion' ? '2x XP Boost' : profile.active_buff === 'power_rush' ? '3x XP Rush' : 'Buff Active'}
+                  {profile.active_buff === 'xp_potion' ? '2x XP Boost' : 
+                   profile.active_buff === 'power_rush' ? '3x XP Rush' : 
+                   profile.active_buff === 'lucky_coin' ? '2x Currency' : 
+                   'Streak Freeze'}
                 </span>
                 <span className="ml-1 border-l pl-2 border-current/30">{formatLongTimer(buffTimeLeft)}</span>
               </div>
@@ -514,11 +513,13 @@ export default function LifeRPGApp() {
                       <Target className={`w-8 h-8 ${currentStyle.accent} animate-pulse`} />
                     </div>
                     <div className="space-y-1.5 max-w-md z-10">
-                      <h3 className={`text-base font-black font-mono tracking-widest uppercase ${textMain}`}>No Active Contracts Found</h3>
-                      <p className={`text-xs ${textMuted} leading-relaxed`}>Your operational buffer is empty. Initialize your first directive above to begin earning XP, building attribute dominance, and banking {activeGenre.currency}.</p>
+                      <h3 className={`text-base font-black font-mono tracking-widest uppercase ${textMain}`}>No Active Quests Found</h3>
+                      <p className={`text-xs ${textMuted} leading-relaxed`}>
+                        Your quest log is empty. Initialize your first quest above to begin earning XP, building attribute dominance, and banking {activeGenre.currency}.
+                      </p>
                     </div>
                     <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsAddModalOpen(true)} className={`px-6 py-3 rounded-xl bg-gradient-to-r ${currentStyle.bar} text-white font-mono font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 z-10 mt-2`}>
-                      <Plus className="w-4 h-4" /> Deploy First Directive
+                      <Plus className="w-4 h-4" /> Create First Quest
                     </motion.button>
                   </motion.div>
                 ) : (
@@ -587,7 +588,7 @@ export default function LifeRPGApp() {
                           !isOwned && profile.gold < item.cost ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30 opacity-50 cursor-not-allowed' : `bg-gradient-to-r ${currentStyle.bar} text-white shadow-lg`
                         }`}
                       >
-                        {isOwned && isConsumable ? <><Zap className="w-4 h-4" /> ACTIVATE PROTOCOL</> : 'PURCHASE ITEM'}
+                        {isOwned && isConsumable ? <><Zap className="w-4 h-4" /> ACTIVATE</> : 'PURCHASE ITEM'}
                       </motion.button>
                     </motion.div>
                   );
@@ -736,7 +737,7 @@ export default function LifeRPGApp() {
                 <button onClick={() => setIsAddModalOpen(false)} className={`p-2 ${inputBg} hover:${cardBg} rounded-full`}><X className={`w-4 h-4 ${textMuted}`} /></button>
               </div>
               <form onSubmit={async (e) => { e.preventDefault(); const res = await createTask(new FormData(e.currentTarget)); if (res?.error) showFeedback(res.error); setIsAddModalOpen(false); await loadData(); }} className="space-y-4 font-mono text-xs font-bold">
-                <div><label className={`block ${textMuted} mb-2 tracking-widest`}>CONTRACT TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
+                <div><label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -752,7 +753,7 @@ export default function LifeRPGApp() {
                     </select>
                   </div>
                 </div>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className={`w-full py-4 ${btnInvert} font-black tracking-widest uppercase rounded-xl mt-4 shadow-lg transition-colors`}>Deploy Contract</motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className={`w-full py-4 ${btnInvert} font-black tracking-widest uppercase rounded-xl mt-4 shadow-lg transition-colors`}>Create Quest</motion.button>
               </form>
             </motion.div>
           </motion.div>
@@ -777,7 +778,7 @@ export default function LifeRPGApp() {
                 await loadData();
               }} className="space-y-4 font-mono text-xs font-bold">
                 <div>
-                  <label className={`block ${textMuted} mb-2 tracking-widest`}>CONTRACT TITLE</label>
+                  <label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label>
                   <input name="title" defaultValue={editingTask.title} required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} />
                 </div>
                 <div>
@@ -798,7 +799,7 @@ export default function LifeRPGApp() {
                     </select>
                   </div>
                 </div>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className={`w-full py-4 ${btnInvert} font-black tracking-widest uppercase rounded-xl mt-4 shadow-lg transition-colors`}>Update Contract</motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className={`w-full py-4 ${btnInvert} font-black tracking-widest uppercase rounded-xl mt-4 shadow-lg transition-colors`}>Save Quest</motion.button>
               </form>
             </motion.div>
           </motion.div>

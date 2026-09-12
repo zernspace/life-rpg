@@ -63,25 +63,22 @@ export async function completeTask(id: string, focusTimeSeconds: number = 0) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Unauthorized' };
 
-  // 1. Get Task and Profile
   const { data: task } = await supabase.from('tasks').select('*').eq('id', id).single();
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
   if (!task || !profile) return { error: 'Record not found' };
 
-  // 2. Check for Active Buffs
   let finalXp = task.xp_reward;
   let finalGold = task.gold_reward;
   
+  // Verify Buff is Active and multiply rewards
   if (profile.buff_expires_at && new Date(profile.buff_expires_at).getTime() > new Date().getTime()) {
     if (profile.active_buff === 'xp_potion') finalXp *= 2;
     if (profile.active_buff === 'power_rush') finalXp *= 3;
     if (profile.active_buff === 'lucky_coin') finalGold *= 2;
   }
 
-  // 3. Update Task to completed
   await supabase.from('tasks').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', id);
 
-  // 4. Update Profile XP & Attributes
   const newXp = profile.current_xp + finalXp;
   const attrKey = task.category.toLowerCase();
   const newAttrVal = (profile[attrKey] || 0) + 1;
@@ -116,32 +113,45 @@ export async function buyShopItem(itemId: string) {
 }
 
 export async function activateConsumable(itemId: string) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Unauthorized' };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Unauthorized' };
 
-  // Set buff duration based on item
-  let hours = 1;
-  if (itemId === 'xp_potion') hours = 4;
-  else if (itemId === 'power_rush') hours = 1;
-  else if (itemId === 'lucky_coin') hours = 2;
-  else if (itemId === 'streak_freeze') hours = 24;
+    let hours = 1;
+    if (itemId === 'xp_potion') hours = 4;
+    else if (itemId === 'power_rush') hours = 1;
+    else if (itemId === 'lucky_coin') hours = 2;
+    else if (itemId === 'streak_freeze') hours = 24;
 
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + hours);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + hours);
 
-  // Remove the consumable from inventory (it is consumed)
-  await supabase.from('inventory').delete().match({ user_id: user.id, item_id: itemId });
+    // Delete item from inventory safely using explicit .eq constraints
+    const { error: delErr } = await supabase
+      .from('inventory')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('item_id', itemId);
 
-  // Apply to profile
-  const { error } = await supabase.from('profiles').update({
-    active_buff: itemId,
-    buff_expires_at: expiresAt.toISOString()
-  }).eq('id', user.id);
+    if (delErr) throw new Error(delErr.message);
 
-  if (error) return { error: error.message };
-  revalidatePath('/');
-  return { success: true };
+    // Set the active buff on the profile
+    const { error: upErr } = await supabase
+      .from('profiles')
+      .update({
+        active_buff: itemId,
+        buff_expires_at: expiresAt.toISOString()
+      })
+      .eq('id', user.id);
+
+    if (upErr) throw new Error(upErr.message);
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message || 'Failed to activate. Please try again.' };
+  }
 }
 
 export async function updateGenre(genreId: string) {
