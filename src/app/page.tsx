@@ -11,10 +11,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, Zap, Flame, Plus, Trash2, Edit3, 
   CheckCircle2, ShoppingBag, LogOut, Terminal, Sparkles, X, Check, Activity,
-  Sun, Moon, Hexagon, Cpu, Calendar, Clock, Play, Pause, RotateCcw, User, Anchor, Heart
+  Sun, Moon, Hexagon, Cpu, Calendar, Clock, Play, Pause, RotateCcw, User, Anchor, Heart,
+  ArrowLeft
 } from 'lucide-react';
 
-// --- THE MULTI-GENRE DICTIONARY ---
 const GENRES: Record<string, any> = {
   cyberpunk: {
     id: 'cyberpunk', name: 'Cyberpunk', currency: 'Credits', currencyName: 'Credits', icon: Hexagon,
@@ -54,12 +54,14 @@ export default function LifeRPGApp() {
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [ownedItemIds, setOwnedItemIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Navigation State
+  const [authView, setAuthView] = useState<'landing' | 'login' | 'signup'>('landing');
   const [activeTab, setActiveTab] = useState<'quests' | 'shop'>('quests');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   
   // Modals
@@ -108,7 +110,6 @@ export default function LifeRPGApp() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Timer Tick Engine
   useEffect(() => {
     let interval: any = null;
     if (isTimerRunning && timerSeconds > 0) {
@@ -131,11 +132,13 @@ export default function LifeRPGApp() {
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); setAuthError(null);
     const fd = new FormData(e.currentTarget);
-    const res = isSignUp ? await signUp(fd) : await login(fd);
+    const res = authView === 'signup' ? await signUp(fd) : await login(fd);
     if (res?.error) setAuthError(res.error); else await loadData();
   };
 
-  const handleSignOut = async () => { await signOut(); setUser(null); setProfile(null); setTasks([]); };
+  const handleSignOut = async () => { 
+    await signOut(); setUser(null); setProfile(null); setTasks([]); setAuthView('landing'); 
+  };
 
   const handleComplete = async (taskId: string, focusTime: number = 0) => {
     playChime(); confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
@@ -156,12 +159,7 @@ export default function LifeRPGApp() {
     return activeGenre.ranks[idx];
   };
 
-  const formatHours = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m`;
-  };
-
+  const formatHours = (seconds: number) => `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   const formatTimer = (secs: number) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 
   const bgBase = isDarkMode ? 'bg-slate-950' : 'bg-slate-50';
@@ -172,6 +170,7 @@ export default function LifeRPGApp() {
   const textMuted = isDarkMode ? 'text-slate-400' : 'text-slate-500';
   const inputBg = isDarkMode ? 'bg-slate-900/50' : 'bg-white/80';
   const btnInvert = isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-slate-900 text-slate-100 hover:bg-slate-800';
+  
   const containerVars = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
   const itemVars = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
 
@@ -195,18 +194,86 @@ export default function LifeRPGApp() {
     );
   }
 
-  // --- AUTH SCREEN ---
+  // ==========================================
+  // UNAUTHENTICATED: LANDING PAGE & AUTH FORMS
+  // ==========================================
   if (!user || !profile) {
+    
+    // VIEW 1: THE LANDING PAGE
+    if (authView === 'landing') {
+      return (
+        <div className={`min-h-screen ${bgBase} ${gridPattern} flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors`}>
+          <div className={`absolute top-[-20%] left-[-10%] w-[600px] h-[600px] ${isDarkMode ? 'bg-cyan-500/10' : 'bg-cyan-400/20'} rounded-full blur-[120px] pointer-events-none`} />
+          <div className={`absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] ${isDarkMode ? 'bg-blue-500/10' : 'bg-blue-400/20'} rounded-full blur-[120px] pointer-events-none`} />
+          
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.6 }} className="max-w-4xl w-full text-center z-10 space-y-8 mt-10">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <div className="relative flex items-center justify-center w-16 h-16">
+                <Hexagon className="absolute w-16 h-16 text-cyan-500 opacity-20" />
+                <Hexagon className="absolute w-16 h-16 text-cyan-500 animate-[spin_10s_linear_infinite] opacity-60" style={{ transform: 'rotate(30deg)' }}/>
+                <Zap className="absolute w-8 h-8 text-cyan-500" />
+              </div>
+              <h1 className={`text-5xl md:text-7xl font-black tracking-widest uppercase font-mono ${textMain}`}>
+                LIFE<span className="text-cyan-500">RPG</span>
+              </h1>
+            </div>
+            
+            <p className={`text-lg md:text-xl ${textMuted} font-medium max-w-2xl mx-auto leading-relaxed`}>
+              Stop making to-do lists. Start completing Quests. <br className="hidden md:block"/> 
+              Track habits, master your attribute matrix, and level up your real life across multiple universes.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setAuthView('signup')} className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-cyan-500/20">
+                Initialize Profile
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setAuthView('login')} className={`w-full sm:w-auto px-8 py-4 ${inputBg} border ${cardBorder} ${textMain} font-black rounded-xl uppercase tracking-widest shadow-lg`}>
+                Access Terminal
+              </motion.button>
+            </div>
+
+            {/* Feature Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16 text-left">
+              <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
+                <Cpu className="w-8 h-8 text-cyan-500 mb-4" />
+                <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Attribute Matrix</h3>
+                <p className={`text-sm ${textMuted}`}>Turn real-world chores into permanent progression across Strength, Intellect, Endurance, and Vitality.</p>
+              </div>
+              <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
+                <Clock className="w-8 h-8 text-cyan-500 mb-4" />
+                <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Focus Protocols</h3>
+                <p className={`text-sm ${textMuted}`}>Lock in with built-in Pomodoro timers. Engage deep work sessions to earn multiplier XP and Credits.</p>
+              </div>
+              <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
+                <Hexagon className="w-8 h-8 text-cyan-500 mb-4" />
+                <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Multi-Genre Engine</h3>
+                <p className={`text-sm ${textMuted}`}>Experience your journey as a Cyberpunk Hacker, Pirate King, Cozy Achiever, or Fantasy Hero.</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // VIEW 2: AUTH FORMS (Login or Signup)
     return (
       <div className={`min-h-screen ${bgBase} ${gridPattern} flex items-center justify-center p-4 relative overflow-hidden transition-colors`}>
         <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 ${isDarkMode ? 'bg-cyan-500/10' : 'bg-cyan-400/20'} rounded-full blur-[100px]`} />
         <div className={`absolute bottom-[-10%] right-[-10%] w-96 h-96 ${isDarkMode ? 'bg-blue-500/10' : 'bg-blue-400/20'} rounded-full blur-[100px]`} />
+        
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-8 backdrop-blur-xl shadow-2xl z-10`}>
+          <button onClick={() => { setAuthView('landing'); setAuthError(null); }} className={`flex items-center gap-2 text-xs font-bold tracking-widest uppercase ${textMuted} hover:${textMain} mb-6 transition-colors`}>
+            <ArrowLeft className="w-4 h-4" /> Return to Main
+          </button>
+          
           <div className="flex items-center gap-3 justify-center mb-2">
             <Hexagon className={`w-8 h-8 text-cyan-500`} />
             <h1 className={`text-3xl font-black tracking-widest uppercase font-mono ${textMain}`}>LIFE<span className="text-cyan-500">RPG</span></h1>
           </div>
-          <p className={`text-center ${textMuted} text-sm mb-8 font-medium`}>Select your universe. Build your reality.</p>
+          <p className={`text-center ${textMuted} text-sm mb-8 font-medium`}>
+            {authView === 'signup' ? 'Select your universe. Build your reality.' : 'Enter your credentials to synchronize.'}
+          </p>
+
           <AnimatePresence>
             {authError && (
               <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} className="p-3 mb-6 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs text-center font-bold">
@@ -214,8 +281,9 @@ export default function LifeRPGApp() {
               </motion.div>
             )}
           </AnimatePresence>
+
           <form onSubmit={handleAuth} className="space-y-4">
-            {isSignUp && (
+            {authView === 'signup' && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
                 <div>
                   <label className={`block text-xs font-bold tracking-wider ${textMuted} mb-1.5 ml-1`}>OPERATIVE HANDLE</label>
@@ -245,18 +313,21 @@ export default function LifeRPGApp() {
               <input type="password" name="password" required placeholder="••••••••" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} text-sm focus:border-cyan-400 outline-none`} />
             </div>
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black uppercase tracking-widest mt-4">
-              {isSignUp ? 'Initialize Character' : 'Authenticate Session'}
+              {authView === 'signup' ? 'Initialize Character' : 'Authenticate Session'}
             </motion.button>
           </form>
-          <button onClick={() => { setIsSignUp(!isSignUp); setAuthError(null); }} className={`w-full text-center text-xs ${textMuted} hover:text-cyan-500 transition mt-6 font-bold`}>
-            {isSignUp ? 'Already registered? Log in' : 'New? Create Profile & Choose Universe'}
+          
+          <button onClick={() => { setAuthView(authView === 'signup' ? 'login' : 'signup'); setAuthError(null); }} className={`w-full text-center text-xs ${textMuted} hover:text-cyan-500 transition mt-6 font-bold`}>
+            {authView === 'signup' ? 'Already registered? Access terminal' : 'New operative? Create profile & choose universe'}
           </button>
         </motion.div>
       </div>
     );
   }
 
-  // --- MAIN DASHBOARD ---
+  // ==========================================
+  // AUTHENTICATED: MAIN DASHBOARD
+  // ==========================================
   return (
     <div className={`min-h-screen ${bgBase} ${gridPattern} ${textMain} bg-gradient-to-br ${currentStyle.bg} p-4 sm:p-6 font-sans relative pb-24 transition-colors duration-500`}>
       <AnimatePresence>
@@ -269,7 +340,7 @@ export default function LifeRPGApp() {
 
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* HEADER */}
+        {/* HEADER & SIGN OUT */}
         <motion.header initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`flex flex-wrap items-center justify-between gap-6 p-4 sm:p-5 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-xl shadow-xl transition-colors`}>
           <div className="flex items-center gap-5">
             <div className={`relative w-14 h-14 rounded-2xl ${inputBg} border ${currentStyle.border} flex items-center justify-center font-black ${currentStyle.accent} text-2xl ${currentStyle.glow}`}>
@@ -290,18 +361,24 @@ export default function LifeRPGApp() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm font-mono font-bold">
+          
+          <div className="flex flex-wrap items-center gap-2 text-sm font-mono font-bold">
             <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl ${isDarkMode ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-100 border-amber-300'} text-amber-500`}>
               <Sparkles className="w-4 h-4" /> {profile.gold} {activeGenre.currency}
             </div>
             <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl ${isDarkMode ? 'bg-rose-500/10 border-rose-500/20' : 'bg-rose-100 border-rose-300'} text-rose-500`}>
               <Flame className="w-4 h-4" /> {profile.streak_count}D 
             </div>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsProfileModalOpen(true)} className={`p-2.5 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} transition-colors`}>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsProfileModalOpen(true)} className={`p-2.5 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} transition-colors`} title="Profile & Universe Settings">
               <User className="w-4 h-4" />
             </motion.button>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2.5 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} transition-colors`}>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2.5 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} transition-colors`} title="Toggle Light/Dark Mode">
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </motion.button>
+            
+            {/* EXPLICIT SIGN OUT BUTTON */}
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSignOut} className={`px-4 py-2.5 flex items-center gap-2 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} hover:text-rose-500 transition-colors uppercase tracking-widest text-[10px]`}>
+              <LogOut className="w-4 h-4" /> Sign Out
             </motion.button>
           </div>
         </motion.header>
@@ -513,7 +590,7 @@ export default function LifeRPGApp() {
       <AnimatePresence>
         {isProfileModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/80' : 'bg-slate-900/40'} backdrop-blur-md flex items-center justify-center p-4 z-50`}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-8 shadow-2xl`}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-8 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h3 className={`font-mono font-black text-sm tracking-widest ${textMain} uppercase`}>Operative Profile</h3>
                 <button onClick={() => setIsProfileModalOpen(false)} className={`p-2 ${inputBg} hover:${cardBg} rounded-full transition-colors`}><X className={`w-4 h-4 ${textMuted}`} /></button>
@@ -536,8 +613,7 @@ export default function LifeRPGApp() {
         )}
       </AnimatePresence>
 
-      {/* --- CREATE / EDIT QUEST MODALS OMITTED FOR BREVITY, BEHAVIOR REMAINS IDENTICAL --- */}
-      {/* (Add/Edit modals would go here, fully responsive to the text colors of the active theme) */}
+      {/* --- MODAL: CREATE QUEST --- */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/60' : 'bg-slate-900/20'} backdrop-blur-sm flex items-center justify-center p-4 z-50`}>
