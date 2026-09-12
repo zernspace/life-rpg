@@ -3,23 +3,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { signUp, login, signOut } from '@/app/actions/auth';
-import { createTask, updateTask, deleteTask, completeTask, buyShopItem, updateGenre } from '@/app/actions/rpg';
+import { createTask, updateTask, deleteTask, completeTask, buyShopItem, activateConsumable, updateGenre } from '@/app/actions/rpg';
 import { getRequiredXp } from '@/lib/rpg-utils';
 import { Profile, Task, ShopItem, AttributeType, DifficultyType } from '@/types/game';
 import confetti from 'canvas-confetti';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { 
   Shield, Zap, Flame, Plus, Trash2, Edit3, 
   CheckCircle2, ShoppingBag, LogOut, Terminal, Sparkles, X, Check, Activity,
   Sun, Moon, Hexagon, Cpu, Calendar, Clock, Play, Pause, RotateCcw, User, Anchor, Heart,
-  ArrowLeft, Loader2, Target
+  ArrowLeft, Loader2, Target, Timer
 } from 'lucide-react';
 
 const GENRES: Record<string, any> = {
   cyberpunk: {
     id: 'cyberpunk', name: 'Cyberpunk', currency: 'Credits', currencyName: 'Credits', icon: Hexagon,
     ranks: ['Novice', 'Adept', 'Specialist', 'Veteran', 'Master', 'Apex'],
-    stats: { Strength: 'STRENGTH', Intellect: 'INTELLECT', Endurance: 'ENDURANCE', Vitality: 'VITALITY' },
+    stats: { Strength: 'STR', Intellect: 'INT', Endurance: 'END', Vitality: 'VIT' },
     dark: { bg: 'from-cyan-950/40 via-blue-950/20 to-slate-950', accent: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-500 to-blue-500' },
     light: { bg: 'from-cyan-100/50 via-blue-50/50 to-slate-50', accent: 'text-cyan-600', border: 'border-cyan-400/50', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-400 to-blue-500' }
   },
@@ -50,18 +50,18 @@ export default function LifeRPGApp() {
   const supabase = useMemo(() => createClient(), []);
   
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // Extend profile type locally to support new buff columns
+  const [profile, setProfile] = useState<(Profile & { active_buff?: string, buff_expires_at?: string }) | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [ownedItemIds, setOwnedItemIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Navigation & Form State
+  // Navigation & State
   const [authView, setAuthView] = useState<'landing' | 'login' | 'signup'>('landing');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'quests' | 'shop'>('quests');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -71,12 +71,13 @@ export default function LifeRPGApp() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Focus Timer State
+  // Timers
   const [timerTask, setTimerTask] = useState<Task | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [initialDuration, setInitialDuration] = useState(25 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [elapsedFocusTime, setElapsedFocusTime] = useState(0);
+  const [buffTimeLeft, setBuffTimeLeft] = useState<number | null>(null);
 
   const activeGenre = GENRES[profile?.genre || 'cyberpunk'] || GENRES['cyberpunk'];
   const currentStyle = isDarkMode ? activeGenre.dark : activeGenre.light;
@@ -84,6 +85,7 @@ export default function LifeRPGApp() {
 
   const showFeedback = (msg: string) => { setFeedbackMessage(msg); setTimeout(() => setFeedbackMessage(null), 3500); };
 
+  // --- AUDIO EFFECTS ---
   const playChime = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -94,6 +96,38 @@ export default function LifeRPGApp() {
       osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.3);
     } catch (e) {}
   };
+
+  const playPowerUp = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'square'; osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.4);
+    } catch (e) {}
+  };
+
+  // Global Button Click Sound Event
+  useEffect(() => {
+    const playClick = () => {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.05, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
+        osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.05);
+      } catch (e) {}
+    };
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) playClick();
+    };
+    
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -113,10 +147,23 @@ export default function LifeRPGApp() {
     }
   }, [supabase]);
 
-  useEffect(() => { 
-    loadData(); 
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
+  // Calculate active buff timer
+  useEffect(() => {
+    if (!profile?.buff_expires_at) { setBuffTimeLeft(null); return; }
+    
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const expires = new Date(profile.buff_expires_at!).getTime();
+      const diff = expires - now;
+      if (diff <= 0) { setBuffTimeLeft(null); clearInterval(interval); } 
+      else { setBuffTimeLeft(Math.floor(diff / 1000)); }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [profile?.buff_expires_at]);
+
+  // Focus Timer Protocol
   useEffect(() => {
     let interval: any = null;
     if (isTimerRunning && timerSeconds > 0) {
@@ -125,7 +172,6 @@ export default function LifeRPGApp() {
       setIsTimerRunning(false);
       if (timerTask) {
         handleComplete(timerTask.id, elapsedFocusTime);
-        showFeedback(`Protocol Cleared! +${timerTask.xp_reward} XP`);
         setTimerTask(null);
       }
     }
@@ -137,42 +183,36 @@ export default function LifeRPGApp() {
   };
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); 
-    setAuthError(null);
-    setIsSubmitting(true);
-
+    e.preventDefault(); setAuthError(null); setIsSubmitting(true);
     try {
       const fd = new FormData(e.currentTarget);
       const res = authView === 'signup' ? await signUp(fd) : await login(fd);
-      
-      if (res?.error) {
-        setAuthError(res.error);
-        setIsSubmitting(false);
-      } else {
-        window.location.reload();
-      }
-    } catch (err: any) {
-      setAuthError(err.message || 'Authentication failed');
-      setIsSubmitting(false);
-    }
+      if (res?.error) { setAuthError(res.error); setIsSubmitting(false); } 
+      else { window.location.reload(); }
+    } catch (err: any) { setAuthError(err.message || 'Authentication failed'); setIsSubmitting(false); }
   };
 
-  const handleSignOut = async () => { 
-    await signOut(); 
-    window.location.reload();
-  };
+  const handleSignOut = async () => { await signOut(); window.location.reload(); };
 
   const handleComplete = async (taskId: string, focusTime: number = 0) => {
     playChime(); confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
     const res = await completeTask(taskId, focusTime);
-    if (res?.error) showFeedback(res.error);
+    if (res?.error) { showFeedback(res.error); }
+    else { showFeedback(buffTimeLeft ? `Protocol Cleared (BUFF ACTIVE)!` : `Protocol Cleared!`); }
     await loadData();
   };
 
   const handleBuy = async (itemId: string) => {
     const res = await buyShopItem(itemId);
     if (res?.error) { showFeedback(res.error); } 
-    else { playChime(); confetti({ particleCount: 60, spread: 60 }); showFeedback('Acquired and synchronized!'); }
+    else { playChime(); confetti({ particleCount: 60, spread: 60 }); showFeedback('Acquired to inventory!'); }
+    await loadData();
+  };
+
+  const handleActivate = async (itemId: string) => {
+    const res = await activateConsumable(itemId);
+    if (res?.error) { showFeedback(res.error); }
+    else { playPowerUp(); confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 } }); showFeedback('Protocol Activated!'); }
     await loadData();
   };
 
@@ -183,6 +223,12 @@ export default function LifeRPGApp() {
 
   const formatHours = (seconds: number) => `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   const formatTimer = (secs: number) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
+  const formatLongTimer = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
+  };
 
   const bgBase = isDarkMode ? 'bg-slate-950' : 'bg-slate-50';
   const gridPattern = isDarkMode ? 'bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]' : 'bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] bg-[size:24px_24px]';
@@ -193,8 +239,8 @@ export default function LifeRPGApp() {
   const inputBg = isDarkMode ? 'bg-slate-900/50' : 'bg-white/80';
   const btnInvert = isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-slate-900 text-slate-100 hover:bg-slate-800';
   
-  const containerVars = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
-  const itemVars = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } };
+  const containerVars: Variants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+  const itemVars: Variants = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } };
 
   const reqXp = profile ? getRequiredXp(profile.level) : 100;
   const xpPercent = profile ? Math.min(100, Math.round((profile.current_xp / reqXp) * 100)) : 0;
@@ -391,6 +437,22 @@ export default function LifeRPGApp() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2 text-sm font-mono font-bold">
+            
+            {/* ACTIVE BUFF TIMERS */}
+            {buffTimeLeft !== null && profile.active_buff && (
+              <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border animate-pulse ${
+                profile.active_buff === 'xp_potion' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' :
+                profile.active_buff === 'power_rush' ? 'bg-rose-500/10 border-rose-500/30 text-rose-400' :
+                'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              }`}>
+                <Timer className="w-4 h-4" />
+                <span className="text-[10px] tracking-widest uppercase font-black">
+                  {profile.active_buff === 'xp_potion' ? '2x XP Boost' : profile.active_buff === 'power_rush' ? '3x XP Rush' : 'Buff Active'}
+                </span>
+                <span className="ml-1 border-l pl-2 border-current/30">{formatLongTimer(buffTimeLeft)}</span>
+              </div>
+            )}
+
             <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl ${isDarkMode ? 'bg-amber-500/10 border-amber-500/20' : 'bg-amber-100 border-amber-300'} text-amber-500`}>
               <Sparkles className="w-4 h-4" /> {profile.gold} {activeGenre.currency}
             </div>
@@ -403,7 +465,6 @@ export default function LifeRPGApp() {
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsDarkMode(!isDarkMode)} className={`p-2.5 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} transition-colors`} title="Toggle Light/Dark Mode">
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </motion.button>
-            
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSignOut} className={`px-4 py-2.5 flex items-center gap-2 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} hover:text-rose-500 transition-colors uppercase tracking-widest text-[10px]`}>
               <LogOut className="w-4 h-4" /> Sign Out
             </motion.button>
@@ -412,8 +473,6 @@ export default function LifeRPGApp() {
 
         {/* MAIN DASHBOARD CONTENT */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          
-          {/* LEFT COLUMN: QUESTS & ARMORY */}
           <div className="xl:col-span-2 space-y-6">
             <motion.section initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md shadow-lg`}>
               <div className="flex flex-wrap items-end justify-between gap-4 mb-3">
@@ -449,33 +508,16 @@ export default function LifeRPGApp() {
                 </div>
 
                 {filteredTasks.length === 0 ? (
-                  /* TACTICAL EMPTY STATE WATERMARK CONTAINER */
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.98 }} 
-                    animate={{ opacity: 1, scale: 1 }} 
-                    className={`p-10 sm:p-14 rounded-3xl border-2 border-dashed ${cardBorder} ${cardBg} backdrop-blur-md flex flex-col items-center justify-center text-center space-y-4 my-2 relative overflow-hidden`}
-                  >
+                  <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className={`p-10 sm:p-14 rounded-3xl border-2 border-dashed ${cardBorder} ${cardBg} backdrop-blur-md flex flex-col items-center justify-center text-center space-y-4 my-2 relative overflow-hidden`}>
                     <div className={`absolute w-40 h-40 rounded-full ${isDarkMode ? 'bg-cyan-500/5' : 'bg-cyan-400/10'} blur-3xl pointer-events-none`} />
-
                     <div className={`relative w-16 h-16 rounded-2xl ${inputBg} border ${cardBorder} flex items-center justify-center shadow-lg z-10`}>
                       <Target className={`w-8 h-8 ${currentStyle.accent} animate-pulse`} />
                     </div>
-
                     <div className="space-y-1.5 max-w-md z-10">
-                      <h3 className={`text-base font-black font-mono tracking-widest uppercase ${textMain}`}>
-                        No Active Contracts Found
-                      </h3>
-                      <p className={`text-xs ${textMuted} leading-relaxed`}>
-                        Your operational buffer is empty. Initialize your first directive above to begin earning XP, building attribute dominance, and banking {activeGenre.currency}.
-                      </p>
+                      <h3 className={`text-base font-black font-mono tracking-widest uppercase ${textMain}`}>No Active Contracts Found</h3>
+                      <p className={`text-xs ${textMuted} leading-relaxed`}>Your operational buffer is empty. Initialize your first directive above to begin earning XP, building attribute dominance, and banking {activeGenre.currency}.</p>
                     </div>
-
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setIsAddModalOpen(true)}
-                      className={`px-6 py-3 rounded-xl bg-gradient-to-r ${currentStyle.bar} text-white font-mono font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 z-10 mt-2`}
-                    >
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsAddModalOpen(true)} className={`px-6 py-3 rounded-xl bg-gradient-to-r ${currentStyle.bar} text-white font-mono font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 z-10 mt-2`}>
                       <Plus className="w-4 h-4" /> Deploy First Directive
                     </motion.button>
                   </motion.div>
@@ -523,20 +565,29 @@ export default function LifeRPGApp() {
               <motion.div variants={containerVars} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {shopItems.map(item => {
                   const isOwned = ownedItemIds.includes(item.id);
-                  const isEquipped = (item.type === 'theme' && profile.active_theme === item.value) || (item.type === 'badge' && profile.equipped_badge === item.value);
+                  const isConsumable = item.id === 'xp_potion' || item.id === 'power_rush' || item.id === 'lucky_coin' || item.id === 'streak_freeze';
+                  
                   return (
                     <motion.div variants={itemVars} key={item.id} className={`p-5 ${cardBg} backdrop-blur-md border ${cardBorder} rounded-3xl flex flex-col justify-between gap-5 group`}>
                       <div>
                         <div className="flex justify-between items-start mb-3">
                           <h3 className={`font-black text-lg ${textMain}`}>{item.name}</h3>
                           <span className={`text-[10px] font-black font-mono px-2 py-1 rounded-lg tracking-wider border ${isOwned ? (isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-100 text-emerald-600 border-emerald-300') : (isDarkMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-600 border-amber-300')}`}>
-                            {isOwned ? 'ACQUIRED' : `${item.cost} ${activeGenre.currency}`}
+                            {isOwned ? 'OWNED' : `${item.cost} ${activeGenre.currency}`}
                           </span>
                         </div>
                         <p className={`text-sm ${textMuted} font-medium leading-relaxed`}>{item.description}</p>
                       </div>
-                      <motion.button whileHover={!isEquipped ? { scale: 1.02 } : {}} whileTap={!isEquipped ? { scale: 0.98 } : {}} disabled={(!isOwned && profile.gold < item.cost) || isEquipped} onClick={() => handleBuy(item.id)} className={`w-full py-3 rounded-xl font-mono text-xs tracking-widest font-black transition-all flex items-center justify-center gap-2 ${isEquipped ? `${inputBg} ${textMuted} border ${cardBorder}` : isOwned ? `${btnInvert} shadow-lg` : profile.gold < item.cost ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30 opacity-50 cursor-not-allowed' : `bg-gradient-to-r ${currentStyle.bar} text-white shadow-lg`}`}>
-                        {isEquipped ? <><Check className="w-4 h-4" /> ACTIVE</> : isOwned ? 'EQUIP ITEM' : 'PURCHASE & EQUIP'}
+                      <motion.button 
+                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} 
+                        disabled={!isOwned && profile.gold < item.cost} 
+                        onClick={() => isOwned && isConsumable ? handleActivate(item.id) : handleBuy(item.id)} 
+                        className={`w-full py-3 rounded-xl font-mono text-xs tracking-widest font-black transition-all flex items-center justify-center gap-2 ${
+                          isOwned && isConsumable ? `bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.4)]` :
+                          !isOwned && profile.gold < item.cost ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30 opacity-50 cursor-not-allowed' : `bg-gradient-to-r ${currentStyle.bar} text-white shadow-lg`
+                        }`}
+                      >
+                        {isOwned && isConsumable ? <><Zap className="w-4 h-4" /> ACTIVATE PROTOCOL</> : 'PURCHASE ITEM'}
                       </motion.button>
                     </motion.div>
                   );
@@ -675,7 +726,7 @@ export default function LifeRPGApp() {
         )}
       </AnimatePresence>
 
-      {/* MODAL: CREATE QUEST */}
+      {/* MODAL: INITIALIZE QUEST */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/60' : 'bg-slate-900/20'} backdrop-blur-sm flex items-center justify-center p-4 z-50`}>
@@ -753,7 +804,6 @@ export default function LifeRPGApp() {
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }

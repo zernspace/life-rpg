@@ -1,23 +1,21 @@
-'use server'
+'use server';
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { AttributeType, DifficultyType } from '@/types/game';
-import { getRequiredXp } from '@/lib/rpg-utils';
 
-const REWARD_MAP: Record<DifficultyType, { xp: number; gold: number }> = {
-  Easy: { xp: 50, gold: 15 }, Medium: { xp: 100, gold: 35 },
-  Hard: { xp: 200, gold: 75 }, Epic: { xp: 400, gold: 150 },
+const REWARD_MAP = {
+  Easy: { xp: 10, gold: 5 },
+  Medium: { xp: 25, gold: 15 },
+  Hard: { xp: 50, gold: 35 },
+  Epic: { xp: 100, gold: 75 }
 };
 
 export async function createTask(formData: FormData) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return { error: 'Authentication session expired. Please sign in again.' };
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Authentication session expired.' };
 
     const title = (formData.get('title') as string || '').trim();
     if (!title) return { error: 'Title is required' };
@@ -36,114 +34,120 @@ export async function createTask(formData: FormData) {
       completed: false
     });
 
-    if (error) {
-      console.error('Supabase Task Insert Error:', error.message);
-      return { error: error.message };
-    }
-
+    if (error) return { error: error.message };
     revalidatePath('/');
     return { success: true };
   } catch (err: any) {
-    console.error('createTask Exception:', err);
-    return { error: err.message || 'Operation timed out. Please retry.' };
+    return { error: err.message || 'Operation failed' };
   }
 }
-export async function updateTask(taskId: string, title: string, description: string, category: AttributeType, difficulty: DifficultyType) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Unauthorized' };
-    const rewards = REWARD_MAP[difficulty] || REWARD_MAP.Medium;
-    const { error } = await supabase.from('tasks').update({ title: title.trim(), description, category, difficulty, xp_reward: rewards.xp, gold_reward: rewards.gold }).match({ id: taskId, user_id: user.id });
-    if (error) return { error: error.message };
-    revalidatePath('/'); return { success: true };
-  } catch (err: any) { return { error: err.message }; }
+
+export async function updateTask(id: string, title: string, description: string, category: AttributeType, difficulty: DifficultyType) {
+  const supabase = await createClient();
+  const rewards = REWARD_MAP[difficulty] || REWARD_MAP.Medium;
+  const { error } = await supabase.from('tasks').update({ title, description, category, difficulty, xp_reward: rewards.xp, gold_reward: rewards.gold }).eq('id', id);
+  if (error) return { error: error.message };
+  revalidatePath('/');
+  return { success: true };
 }
 
-export async function deleteTask(taskId: string) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Unauthorized' };
-    await supabase.from('tasks').delete().match({ id: taskId, user_id: user.id });
-    revalidatePath('/'); return { success: true };
-  } catch (err: any) { return { error: err.message }; }
+export async function deleteTask(id: string) {
+  const supabase = await createClient();
+  await supabase.from('tasks').delete().eq('id', id);
+  revalidatePath('/');
+  return { success: true };
 }
 
-export async function completeTask(taskId: string, focusSeconds: number = 0) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Unauthorized' };
+export async function completeTask(id: string, focusTimeSeconds: number = 0) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Unauthorized' };
 
-    const { data: task } = await supabase.from('tasks').select('*').eq('id', taskId).single();
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (!task || task.completed || !profile) return { error: 'Invalid state' };
+  // 1. Get Task and Profile
+  const { data: task } = await supabase.from('tasks').select('*').eq('id', id).single();
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  if (!task || !profile) return { error: 'Record not found' };
 
-    await supabase.from('tasks').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', taskId);
+  // 2. Check for Active Buffs
+  let finalXp = task.xp_reward;
+  let finalGold = task.gold_reward;
+  
+  if (profile.buff_expires_at && new Date(profile.buff_expires_at).getTime() > new Date().getTime()) {
+    if (profile.active_buff === 'xp_potion') finalXp *= 2;
+    if (profile.active_buff === 'power_rush') finalXp *= 3;
+    if (profile.active_buff === 'lucky_coin') finalGold *= 2;
+  }
 
-    const today = new Date().toISOString().split('T')[0];
-    let newStreak = profile.streak_count || 1;
-    if (profile.last_active_date !== today) {
-      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-      if (profile.last_active_date === yesterday.toISOString().split('T')[0]) newStreak += 1;
-      else newStreak = 1;
-    }
+  // 3. Update Task to completed
+  await supabase.from('tasks').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', id);
 
-    let newXp = profile.current_xp + task.xp_reward;
-    let newLevel = profile.level;
-    let reqXp = getRequiredXp(newLevel);
-    while (newXp >= reqXp) { newXp -= reqXp; newLevel += 1; reqXp = getRequiredXp(newLevel); }
+  // 4. Update Profile XP & Attributes
+  const newXp = profile.current_xp + finalXp;
+  const attrKey = task.category.toLowerCase();
+  const newAttrVal = (profile[attrKey] || 0) + 1;
+  const newFocusTime = (profile.total_focus_time || 0) + focusTimeSeconds;
 
-    const attrKey = task.category.toLowerCase() as 'strength' | 'intellect' | 'endurance' | 'vitality';
-    
-    await supabase.from('profiles').update({
-      level: newLevel, current_xp: newXp, gold: profile.gold + task.gold_reward,
-      streak_count: newStreak, best_streak: Math.max(newStreak, profile.best_streak || 1),
-      last_active_date: today, [attrKey]: (profile[attrKey] || 10) + 2,
-      total_focus_time: (profile.total_focus_time || 0) + focusSeconds
-    }).eq('id', user.id);
+  await supabase.from('profiles').update({
+    current_xp: newXp,
+    gold: profile.gold + finalGold,
+    [attrKey]: newAttrVal,
+    total_focus_time: newFocusTime
+  }).eq('id', user.id);
 
-    revalidatePath('/'); return { success: true };
-  } catch (err: any) { return { error: err.message }; }
+  revalidatePath('/');
+  return { success: true };
 }
 
 export async function buyShopItem(itemId: string) {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Unauthorized' };
-    const { data: item } = await supabase.from('shop_items').select('*').eq('id', itemId).single();
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if (!item || !profile) return { error: 'Not found' };
-    
-    const { data: existing } = await supabase.from('inventory').select('id').match({ user_id: user.id, item_id: itemId }).maybeSingle();
-    if (existing) {
-      const updates: any = {};
-      if (item.type === 'theme') updates.active_theme = item.value;
-      if (item.type === 'badge') updates.equipped_badge = item.value;
-      if (Object.keys(updates).length > 0) { await supabase.from('profiles').update(updates).eq('id', user.id); revalidatePath('/'); return { success: true }; }
-      return { error: 'Already acquired' };
-    }
-    if (profile.gold < item.cost) return { error: 'Insufficient funds' };
-
-    await supabase.from('inventory').insert({ user_id: user.id, item_id: itemId });
-    const updates: any = { gold: profile.gold - item.cost };
-    if (item.type === 'theme') updates.active_theme = item.value;
-    if (item.type === 'badge') updates.equipped_badge = item.value;
-    if (item.type === 'equipment' && item.boost_attribute) {
-      const key = item.boost_attribute.toLowerCase(); updates[key] = (profile[key] || 10) + (item.boost_value || 0);
-    }
-    await supabase.from('profiles').update(updates).eq('id', user.id);
-    revalidatePath('/'); return { success: true };
-  } catch (err: any) { return { error: err.message }; }
-}
-
-export async function updateGenre(genre: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
-    await supabase.from('profiles').update({ genre }).eq('id', user.id);
-    revalidatePath('/');
-  }
+  if (!user) return { error: 'Unauthorized' };
+
+  const { data: item } = await supabase.from('shop_items').select('*').eq('id', itemId).single();
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  
+  if (!item || !profile || profile.gold < item.cost) return { error: 'Insufficient funds' };
+
+  await supabase.from('profiles').update({ gold: profile.gold - item.cost }).eq('id', user.id);
+  await supabase.from('inventory').insert({ user_id: user.id, item_id: itemId });
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function activateConsumable(itemId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  // Set buff duration based on item
+  let hours = 1;
+  if (itemId === 'xp_potion') hours = 4;
+  else if (itemId === 'power_rush') hours = 1;
+  else if (itemId === 'lucky_coin') hours = 2;
+  else if (itemId === 'streak_freeze') hours = 24;
+
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + hours);
+
+  // Remove the consumable from inventory (it is consumed)
+  await supabase.from('inventory').delete().match({ user_id: user.id, item_id: itemId });
+
+  // Apply to profile
+  const { error } = await supabase.from('profiles').update({
+    active_buff: itemId,
+    buff_expires_at: expiresAt.toISOString()
+  }).eq('id', user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function updateGenre(genreId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('profiles').update({ genre: genreId }).eq('id', user.id);
+  revalidatePath('/');
 }
