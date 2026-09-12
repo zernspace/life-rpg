@@ -461,7 +461,7 @@ export default function LifeRPGApp() {
                 )}
               </div>
               <p className={`text-xs ${currentStyle.accent} font-mono mt-0.5 tracking-widest uppercase font-bold flex items-center gap-1.5`}>
-                <Shield className="w-3.5 h-3.5" /> Rank: {getRank(profile.level)}
+                <Shield className="w-3.5 h-3.5" /> Rank: {getRank(profile.level, profile.current_xp)}
               </p>
             </div>
           </div>
