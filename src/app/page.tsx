@@ -781,12 +781,12 @@ export default function LifeRPGApp() {
                     created_at: new Date().toISOString()
                   };
                 
-                  // Instantly show on UI and reset filter
+                  // 1. Instantly show on UI and reset filter to 'All'
                   setTasks(prevTasks => [tempTask, ...prevTasks]);
                   setSelectedCategory('All');
                   setIsAddModalOpen(false);
                 
-                  // Write directly from browser to Supabase (bypasses Vercel server limits)
+                  // 2. Write directly from browser to Supabase
                   const { error } = await supabase.from('tasks').insert({
                     user_id: user.id,
                     title,
@@ -802,8 +802,10 @@ export default function LifeRPGApp() {
                     showFeedback(error.message);
                   }
                 
-                  // Sync data
-                  await loadData();
+                  // 3. Wait 1.5 seconds before syncing so Supabase finishes writing first
+                  setTimeout(async () => {
+                    await loadData();
+                  }, 1500);
                 }} className="space-y-4 font-mono text-xs font-bold">
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
