@@ -209,10 +209,25 @@ export default function LifeRPGApp() {
   const handleSignOut = async () => { await signOut(); window.location.reload(); };
 
   const handleComplete = async (taskId: string, focusTime: number = 0) => {
-    playChime(); confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-    const res = await completeTask(taskId, focusTime);
-    if (res?.error) { showFeedback(res.error); }
-    else { showFeedback(buffTimeLeft ? `Quest Completed (BUFF ACTIVE)!` : `Quest Completed!`); }
+    playChime(); 
+    confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+    
+    // 1. Try completing the task via Server Action
+    let res = await completeTask(taskId, focusTime);
+    
+    // 2. AUTO-RETRY HACK: If it throws unauthorized on the first try, 
+    // force a session refresh and retry once automatically!
+    if (res?.error && res.error.toLowerCase().includes('unauthorized')) {
+      await supabase.auth.getSession(); // Forces browser cookies to sync
+      res = await completeTask(taskId, focusTime); // Instant retry
+    }
+
+    if (res?.error) { 
+      showFeedback(res.error); 
+    } else { 
+      showFeedback(buffTimeLeft ? `Quest Completed (BUFF ACTIVE)!` : `Quest Completed!`); 
+    }
+    
     await loadData();
   };
 
