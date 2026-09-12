@@ -245,12 +245,15 @@ export default function LifeRPGApp() {
   };
 
   const getRank = (lvl: number, profileData?: any) => {
-    // Safely check whatever XP field name your database uses
     const xp = profileData?.current_xp ?? profileData?.xp ?? profileData?.experience ?? 0;
     const effectiveLevel = Math.max(lvl || 1, Math.floor(xp / 100) + 1);
     
-    const idx = effectiveLevel < 5 ? 0 : effectiveLevel < 10 ? 1 : effectiveLevel < 20 ? 2 : effectiveLevel < 30 ? 3 : effectiveLevel < 50 ? 4 : 5;
-    return activeGenre.ranks[idx];
+    // Get the ranks array for the active genre, with a fallback just in case
+    const ranks = activeGenre?.ranks || ['Novice', 'Adventurer', 'Veteran', 'Master', 'Legend', 'Mythic'];
+    
+    const idx = effectiveLevel < 5 ? 0 : effectiveLevel < 10 ? 1 : effectiveLevel < 20 ? 2 : effectiveLevel < 30 ? 3 : effectiveLevel < 50 ? 4 : Math.min(ranks.length - 1, 5);
+    
+    return ranks[idx] || 'Novice';
   };
 
   const formatHours = (seconds: number) => `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
