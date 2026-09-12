@@ -768,25 +768,9 @@ export default function LifeRPGApp() {
                   const xpReward = difficulty === 'Easy' ? 15 : difficulty === 'Medium' ? 30 : difficulty === 'Hard' ? 60 : 100;
                   const goldReward = difficulty === 'Easy' ? 5 : difficulty === 'Medium' ? 10 : difficulty === 'Hard' ? 20 : 40;
                 
-                  const tempTask = {
-                    id: 'temp-' + Date.now(),
-                    title,
-                    description,
-                    category,
-                    difficulty,
-                    completed: false,
-                    xp_reward: xpReward,
-                    gold_reward: goldReward,
-                    user_id: user.id,
-                    created_at: new Date().toISOString()
-                  };
-                
-                  // 1. Instantly show on UI and reset filter to 'All'
-                  setTasks(prevTasks => [tempTask, ...prevTasks]);
-                  setSelectedCategory('All');
                   setIsAddModalOpen(false);
                 
-                  // 2. Write directly from browser to Supabase
+                  // Write directly to Supabase from the browser
                   const { error } = await supabase.from('tasks').insert({
                     user_id: user.id,
                     title,
@@ -800,12 +784,16 @@ export default function LifeRPGApp() {
                 
                   if (error) {
                     showFeedback(error.message);
+                    return;
                   }
                 
-                  // 3. Wait 1.5 seconds before syncing so Supabase finishes writing first
-                  setTimeout(async () => {
+                  // If this was the absolute first task, reload the page to clear the empty state glitch.
+                  // Otherwise, just load data normally for subsequent tasks!
+                  if (tasks.length === 0) {
+                    window.location.reload();
+                  } else {
                     await loadData();
-                  }, 1500);
+                  }
                 }} className="space-y-4 font-mono text-xs font-bold">
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
