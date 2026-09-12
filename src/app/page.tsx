@@ -244,18 +244,17 @@ export default function LifeRPGApp() {
     await loadData();
   };
 
-  const getRank = (lvl: number, profileData?: any) => {
+ const getRank = (lvl: number, profileData?: any) => {
     const xp = profileData?.current_xp ?? profileData?.xp ?? profileData?.experience ?? 0;
-    const effectiveLevel = Math.max(lvl || 1, Math.floor(xp / 100) + 1);
+    const effectiveLevel = Math.max(lvl || 1, Math.floor(xp / 30) + 1); // Ranks up every 30 XP for demo speed!
     
-    // Get the ranks array for the active genre, with a fallback just in case
     const ranks = activeGenre?.ranks || ['Novice', 'Adventurer', 'Veteran', 'Master', 'Legend', 'Mythic'];
     
-    const idx = effectiveLevel < 5 ? 0 : effectiveLevel < 10 ? 1 : effectiveLevel < 20 ? 2 : effectiveLevel < 30 ? 3 : effectiveLevel < 50 ? 4 : Math.min(ranks.length - 1, 5);
+    // Super fast tiers so you can cycle through ranks during your demo
+    const idx = effectiveLevel < 2 ? 0 : effectiveLevel < 4 ? 1 : effectiveLevel < 6 ? 2 : effectiveLevel < 8 ? 3 : effectiveLevel < 10 ? 4 : 5;
     
     return ranks[idx] || 'Novice';
   };
-
   const formatHours = (seconds: number) => `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
   const formatTimer = (secs: number) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
   const formatLongTimer = (secs: number) => {
@@ -466,19 +465,16 @@ export default function LifeRPGApp() {
                 )}
               </div>
               <p className={`text-xs ${currentStyle.accent} font-mono mt-0.5 tracking-widest uppercase font-bold flex items-center gap-1.5`}>
-                <Shield className="w-3.5 h-3.5" /> Rank: {
+              <Shield className="w-3.5 h-3.5" /> Rank: {
   (() => {
-    const totalXp = profile?.current_xp ?? profile?.xp ?? 0;
-    const lvl = profile?.level ?? (Math.floor(totalXp / 100) + 1);
     const ranks = activeGenre?.ranks || ['Novice', 'Adventurer', 'Veteran', 'Master', 'Legend', 'Mythic'];
-    
-    if (lvl >= 30) return ranks[3] || 'Master';
-    if (lvl >= 10) return ranks[2] || 'Veteran';
-    if (lvl >= 5) return ranks[1] || 'Adventurer';
-    return ranks[0] || 'Novice';
+    const lvl = profile?.level || 1;
+    // Maps level directly to the next rank index so it changes every level!
+    const idx = Math.min(lvl - 1, ranks.length - 1);
+    return ranks[idx] || ranks[0];
   })()
 }
-              </p>
+            </p>
             </div>
           </div>
           
