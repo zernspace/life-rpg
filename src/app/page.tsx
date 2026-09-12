@@ -244,9 +244,11 @@ export default function LifeRPGApp() {
     await loadData();
   };
 
-  const getRank = (lvl: number, currentXp: number = 0) => {
-    // Dynamically scale level if the database level column is lagging behind
-    const effectiveLevel = Math.max(lvl, Math.floor(currentXp / 100) + 1);
+  const getRank = (lvl: number, profileData?: any) => {
+    // Safely check whatever XP field name your database uses
+    const xp = profileData?.current_xp ?? profileData?.xp ?? profileData?.experience ?? 0;
+    const effectiveLevel = Math.max(lvl || 1, Math.floor(xp / 100) + 1);
+    
     const idx = effectiveLevel < 5 ? 0 : effectiveLevel < 10 ? 1 : effectiveLevel < 20 ? 2 : effectiveLevel < 30 ? 3 : effectiveLevel < 50 ? 4 : 5;
     return activeGenre.ranks[idx];
   };
@@ -461,7 +463,7 @@ export default function LifeRPGApp() {
                 )}
               </div>
               <p className={`text-xs ${currentStyle.accent} font-mono mt-0.5 tracking-widest uppercase font-bold flex items-center gap-1.5`}>
-                <Shield className="w-3.5 h-3.5" /> Rank: {getRank(profile.level, profile.current_xp)}
+                <Shield className="w-3.5 h-3.5" /> Rank: {getRank(profile?.level, profile)}
               </p>
             </div>
           </div>
