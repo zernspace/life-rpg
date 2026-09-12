@@ -466,7 +466,18 @@ export default function LifeRPGApp() {
                 )}
               </div>
               <p className={`text-xs ${currentStyle.accent} font-mono mt-0.5 tracking-widest uppercase font-bold flex items-center gap-1.5`}>
-                <Shield className="w-3.5 h-3.5" /> Rank: {getRank(profile?.level, profile)}
+                <Shield className="w-3.5 h-3.5" /> Rank: {
+  (() => {
+    const totalXp = profile?.current_xp ?? profile?.xp ?? 0;
+    const lvl = profile?.level ?? (Math.floor(totalXp / 100) + 1);
+    const ranks = activeGenre?.ranks || ['Novice', 'Adventurer', 'Veteran', 'Master', 'Legend', 'Mythic'];
+    
+    if (lvl >= 30) return ranks[3] || 'Master';
+    if (lvl >= 10) return ranks[2] || 'Veteran';
+    if (lvl >= 5) return ranks[1] || 'Adventurer';
+    return ranks[0] || 'Novice';
+  })()
+}
               </p>
             </div>
           </div>
