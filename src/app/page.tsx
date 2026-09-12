@@ -178,13 +178,32 @@ export default function LifeRPGApp() {
   };
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); setAuthError(null); setIsSubmitting(true);
+    e.preventDefault(); 
+    setAuthError(null); 
+    setIsSubmitting(true);
+    
     try {
       const fd = new FormData(e.currentTarget);
-      const res = authView === 'signup' ? await signUp(fd) : await login(fd);
-      if (res?.error) { setAuthError(res.error); setIsSubmitting(false); } 
-      else { window.location.reload(); }
-    } catch (err: any) { setAuthError(err.message || 'Authentication failed'); setIsSubmitting(false); }
+      const email = fd.get('email') as string;
+      const password = fd.get('password') as string;
+      const username = fd.get('username') as string;
+      const genre = fd.get('genre') as string || 'cyberpunk';
+
+      // 1. Execute directly on the client. Bypasses Vercel's serverless timeout completely.
+      const { error } = authView === 'signup' 
+        ? await supabase.auth.signUp({ email, password, options: { data: { username, genre } } })
+        : await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) { 
+        setAuthError(error.message); 
+        setIsSubmitting(false); 
+      } else { 
+        window.location.reload(); 
+      }
+    } catch (err: any) { 
+      setAuthError(err.message || 'Authentication failed'); 
+      setIsSubmitting(false); 
+    }
   };
 
   const handleSignOut = async () => { await signOut(); window.location.reload(); };
