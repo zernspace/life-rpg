@@ -755,7 +755,20 @@ export default function LifeRPGApp() {
                 <h3 className={`font-mono font-black text-sm tracking-widest ${textMain} uppercase`}>Initialize Quest</h3>
                 <button onClick={() => setIsAddModalOpen(false)} className={`p-2 ${inputBg} hover:${cardBg} rounded-full`}><X className={`w-4 h-4 ${textMuted}`} /></button>
               </div>
-              <form onSubmit={async (e) => { e.preventDefault(); const res = await createTask(new FormData(e.currentTarget)); if (res?.error) showFeedback(res.error); setIsAddModalOpen(false); await loadData(); }} className="space-y-4 font-mono text-xs font-bold">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const res = await createTask(new FormData(e.currentTarget));
+                if (res?.error) {
+                  showFeedback(res.error);
+                return;
+              }
+              setIsAddModalOpen(false);
+  
+              // Give Supabase a brief 250ms window to write the row before fetching
+              setTimeout(async () => {
+              await loadData();
+              }, 250);
+                }} className="space-y-4 font-mono text-xs font-bold">
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div className="grid grid-cols-2 gap-4">
