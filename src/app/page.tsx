@@ -244,8 +244,10 @@ export default function LifeRPGApp() {
     await loadData();
   };
 
-  const getRank = (lvl: number) => {
-    const idx = lvl < 5 ? 0 : lvl < 10 ? 1 : lvl < 20 ? 2 : lvl < 30 ? 3 : lvl < 50 ? 4 : 5;
+  const getRank = (lvl: number, currentXp: number = 0) => {
+    // Dynamically scale level if the database level column is lagging behind
+    const effectiveLevel = Math.max(lvl, Math.floor(currentXp / 100) + 1);
+    const idx = effectiveLevel < 5 ? 0 : effectiveLevel < 10 ? 1 : effectiveLevel < 20 ? 2 : effectiveLevel < 30 ? 3 : effectiveLevel < 50 ? 4 : 5;
     return activeGenre.ranks[idx];
   };
 
