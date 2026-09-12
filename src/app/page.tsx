@@ -17,28 +17,28 @@ import {
 // --- THE MULTI-GENRE DICTIONARY ---
 const GENRES: Record<string, any> = {
   cyberpunk: {
-    id: 'cyberpunk', name: 'Cyberpunk', currency: 'CR', currencyName: 'Credits', icon: Hexagon,
+    id: 'cyberpunk', name: 'Cyberpunk', currency: 'Credits', currencyName: 'Credits', icon: Hexagon,
     ranks: ['Novice', 'Adept', 'Specialist', 'Veteran', 'Master', 'Apex'],
     stats: { Strength: 'STR', Intellect: 'INT', Endurance: 'END', Vitality: 'VIT' },
     dark: { bg: 'from-cyan-950/40 via-blue-950/20 to-slate-950', accent: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-500 to-blue-500' },
     light: { bg: 'from-cyan-100/50 via-blue-50/50 to-slate-50', accent: 'text-cyan-600', border: 'border-cyan-400/50', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-400 to-blue-500' }
   },
   fantasy: {
-    id: 'fantasy', name: 'Fantasy RPG', currency: 'GP', currencyName: 'Gold Pieces', icon: Shield,
+    id: 'fantasy', name: 'Fantasy RPG', currency: 'Gold Pieces', currencyName: 'Gold Pieces', icon: Shield,
     ranks: ['Villager', 'Adventurer', 'Hero', 'Champion', 'Legend', 'Demigod'],
     stats: { Strength: 'MIGHT', Intellect: 'WISDOM', Endurance: 'STAMINA', Vitality: 'VIGOR' },
     dark: { bg: 'from-amber-950/40 via-orange-950/20 to-slate-950', accent: 'text-amber-400', border: 'border-amber-500/30', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.2)]', bar: 'from-amber-500 to-orange-500' },
     light: { bg: 'from-amber-100/50 via-orange-50/50 to-slate-50', accent: 'text-amber-600', border: 'border-amber-400/50', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.2)]', bar: 'from-amber-400 to-orange-500' }
   },
   pirate: {
-    id: 'pirate', name: 'High Seas Pirate', currency: 'DB', currencyName: 'Doubloons', icon: Anchor,
+    id: 'pirate', name: 'High Seas Pirate', currency: 'Doubloons', currencyName: 'Doubloons', icon: Anchor,
     ranks: ['Swab', 'Deckhand', 'Boatswain', 'Quartermaster', 'Captain', 'Pirate King'],
     stats: { Strength: 'BRAWN', Intellect: 'CUNNING', Endurance: 'SEA LEGS', Vitality: 'GRIT' },
     dark: { bg: 'from-red-950/40 via-rose-950/20 to-slate-950', accent: 'text-red-400', border: 'border-red-500/30', glow: 'shadow-[0_0_15px_rgba(248,113,113,0.2)]', bar: 'from-red-500 to-rose-500' },
     light: { bg: 'from-red-100/50 via-rose-50/50 to-slate-50', accent: 'text-red-600', border: 'border-red-400/50', glow: 'shadow-[0_0_15px_rgba(248,113,113,0.2)]', bar: 'from-red-400 to-rose-500' }
   },
   casual: {
-    id: 'casual', name: 'Cozy Minimal', currency: 'PT', currencyName: 'Points', icon: Heart,
+    id: 'casual', name: 'Cozy Minimal', currency: 'Points', currencyName: 'Points', icon: Heart,
     ranks: ['Beginner', 'Learner', 'Achiever', 'Professional', 'Expert', 'Master'],
     stats: { Strength: 'FITNESS', Intellect: 'MIND', Endurance: 'FOCUS', Vitality: 'WELLNESS' },
     dark: { bg: 'from-emerald-950/40 via-green-950/20 to-slate-950', accent: 'text-emerald-400', border: 'border-emerald-500/30', glow: 'shadow-[0_0_15px_rgba(16,185,129,0.2)]', bar: 'from-emerald-500 to-green-500' },
