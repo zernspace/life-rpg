@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { AttributeType, DifficultyType } from '@/types/game';
+import { getRequiredXp } from '@/lib/rpg-utils';
 
 const REWARD_MAP = {
   Easy: { xp: 10, gold: 5 },
@@ -79,13 +80,27 @@ export async function completeTask(id: string, focusTimeSeconds: number = 0) {
 
   await supabase.from('tasks').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', id);
 
-  const newXp = profile.current_xp + finalXp;
+  // --- LEVEL UP LOGIC ---
+  let newXp = (profile.current_xp || 0) + finalXp;
+  let newLevel = profile.level || 1;
+  
+  let reqXp = getRequiredXp(newLevel);
+  
+  // Loop in case they gained enough XP to level up multiple times at once
+  while (newXp >= reqXp) {
+    newXp -= reqXp; // Consume the XP required for this level
+    newLevel++;     // DING! Level up
+    reqXp = getRequiredXp(newLevel); // Get the new threshold for the next level
+  }
+
   const attrKey = task.category.toLowerCase();
   const newAttrVal = (profile[attrKey] || 0) + 1;
   const newFocusTime = (profile.total_focus_time || 0) + focusTimeSeconds;
 
+  // Update profile with new XP and new Level
   await supabase.from('profiles').update({
     current_xp: newXp,
+    level: newLevel,
     gold: profile.gold + finalGold,
     [attrKey]: newAttrVal,
     total_focus_time: newFocusTime
