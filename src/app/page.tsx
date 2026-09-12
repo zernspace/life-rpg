@@ -12,14 +12,14 @@ import {
   Shield, Zap, Flame, Plus, Trash2, Edit3, 
   CheckCircle2, ShoppingBag, LogOut, Terminal, Sparkles, X, Check, Activity,
   Sun, Moon, Hexagon, Cpu, Calendar, Clock, Play, Pause, RotateCcw, User, Anchor, Heart,
-  ArrowLeft
+  ArrowLeft, Loader2, Target
 } from 'lucide-react';
 
 const GENRES: Record<string, any> = {
   cyberpunk: {
     id: 'cyberpunk', name: 'Cyberpunk', currency: 'Credits', currencyName: 'Credits', icon: Hexagon,
     ranks: ['Novice', 'Adept', 'Specialist', 'Veteran', 'Master', 'Apex'],
-    stats: { Strength: 'STR', Intellect: 'INT', Endurance: 'END', Vitality: 'VIT' },
+    stats: { Strength: 'STRENGTH', Intellect: 'INTELLECT', Endurance: 'ENDURANCE', Vitality: 'VITALITY' },
     dark: { bg: 'from-cyan-950/40 via-blue-950/20 to-slate-950', accent: 'text-cyan-400', border: 'border-cyan-500/30', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-500 to-blue-500' },
     light: { bg: 'from-cyan-100/50 via-blue-50/50 to-slate-50', accent: 'text-cyan-600', border: 'border-cyan-400/50', glow: 'shadow-[0_0_15px_rgba(6,182,212,0.2)]', bar: 'from-cyan-400 to-blue-500' }
   },
@@ -47,7 +47,8 @@ const GENRES: Record<string, any> = {
 };
 
 export default function LifeRPGApp() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+  
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -55,8 +56,9 @@ export default function LifeRPGApp() {
   const [ownedItemIds, setOwnedItemIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Navigation State
+  // Navigation & Form State
   const [authView, setAuthView] = useState<'landing' | 'login' | 'signup'>('landing');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'quests' | 'shop'>('quests');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   
@@ -69,7 +71,7 @@ export default function LifeRPGApp() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Timer State
+  // Focus Timer State
   const [timerTask, setTimerTask] = useState<Task | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [initialDuration, setInitialDuration] = useState(25 * 60);
@@ -94,21 +96,26 @@ export default function LifeRPGApp() {
   };
 
   const loadData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    if (user) {
-      const [{ data: prof }, { data: tList }, { data: items }, { data: inv }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('tasks').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('shop_items').select('*'),
-        supabase.from('inventory').select('item_id').eq('user_id', user.id)
-      ]);
-      setProfile(prof); setTasks(tList || []); setShopItems(items || []); setOwnedItemIds((inv || []).map((i: any) => i.item_id));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      if (user) {
+        const [{ data: prof }, { data: tList }, { data: items }, { data: inv }] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+          supabase.from('tasks').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('shop_items').select('*'),
+          supabase.from('inventory').select('item_id').eq('user_id', user.id)
+        ]);
+        setProfile(prof); setTasks(tList || []); setShopItems(items || []); setOwnedItemIds((inv || []).map((i: any) => i.item_id));
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [supabase]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { 
+    loadData(); 
+  }, [loadData]);
 
   useEffect(() => {
     let interval: any = null;
@@ -130,14 +137,29 @@ export default function LifeRPGApp() {
   };
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); setAuthError(null);
-    const fd = new FormData(e.currentTarget);
-    const res = authView === 'signup' ? await signUp(fd) : await login(fd);
-    if (res?.error) setAuthError(res.error); else await loadData();
+    e.preventDefault(); 
+    setAuthError(null);
+    setIsSubmitting(true);
+
+    try {
+      const fd = new FormData(e.currentTarget);
+      const res = authView === 'signup' ? await signUp(fd) : await login(fd);
+      
+      if (res?.error) {
+        setAuthError(res.error);
+        setIsSubmitting(false);
+      } else {
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Authentication failed');
+      setIsSubmitting(false);
+    }
   };
 
   const handleSignOut = async () => { 
-    await signOut(); setUser(null); setProfile(null); setTasks([]); setAuthView('landing'); 
+    await signOut(); 
+    window.location.reload();
   };
 
   const handleComplete = async (taskId: string, focusTime: number = 0) => {
@@ -172,7 +194,7 @@ export default function LifeRPGApp() {
   const btnInvert = isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-slate-900 text-slate-100 hover:bg-slate-800';
   
   const containerVars = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
-  const itemVars = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } };
+  const itemVars = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } };
 
   const reqXp = profile ? getRequiredXp(profile.level) : 100;
   const xpPercent = profile ? Math.min(100, Math.round((profile.current_xp / reqXp) * 100)) : 0;
@@ -188,7 +210,7 @@ export default function LifeRPGApp() {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-cyan-400 font-mono">
         <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="flex items-center gap-3">
-          <Activity className="w-6 h-6 animate-spin" /> SYSTEM BOOT...
+          <Activity className="w-6 h-6 animate-spin" /> INITIALIZING NEURAL LINK...
         </motion.div>
       </div>
     );
@@ -198,8 +220,6 @@ export default function LifeRPGApp() {
   // UNAUTHENTICATED: LANDING PAGE & AUTH FORMS
   // ==========================================
   if (!user || !profile) {
-    
-    // VIEW 1: THE LANDING PAGE
     if (authView === 'landing') {
       return (
         <div className={`min-h-screen ${bgBase} ${gridPattern} flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors`}>
@@ -225,19 +245,18 @@ export default function LifeRPGApp() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setAuthView('signup')} className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black rounded-xl uppercase tracking-widest shadow-lg shadow-cyan-500/20">
-                Initialize Profile
+                Create Account
               </motion.button>
               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setAuthView('login')} className={`w-full sm:w-auto px-8 py-4 ${inputBg} border ${cardBorder} ${textMain} font-black rounded-xl uppercase tracking-widest shadow-lg`}>
-                Access Terminal
+                Sign In
               </motion.button>
             </div>
 
-            {/* Feature Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16 text-left">
               <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
                 <Cpu className="w-8 h-8 text-cyan-500 mb-4" />
-                <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Attribute Matrix</h3>
-                <p className={`text-sm ${textMuted}`}>Turn real-world chores into permanent progression across Strength, Intellect, Endurance, and Vitality.</p>
+                <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Dynamic Attributes</h3>
+                <p className={`text-sm ${textMuted}`}>Turn real-world chores into permanent progression across custom stats tailored to your chosen universe.</p>
               </div>
               <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
                 <Clock className="w-8 h-8 text-cyan-500 mb-4" />
@@ -247,7 +266,7 @@ export default function LifeRPGApp() {
               <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md`}>
                 <Hexagon className="w-8 h-8 text-cyan-500 mb-4" />
                 <h3 className={`font-black text-lg ${textMain} mb-2 uppercase tracking-wider`}>Multi-Genre Engine</h3>
-                <p className={`text-sm ${textMuted}`}>Experience your journey as a Cyberpunk Hacker, Pirate King, Cozy Achiever, or Fantasy Hero.</p>
+                <p className={`text-sm ${textMuted}`}>Experience your journey as a Cyberpunk hacker, a Fantasy RPG hero, a High Seas Pirate, or through a Cozy Minimalist aesthetic.</p>
               </div>
             </div>
           </motion.div>
@@ -255,7 +274,6 @@ export default function LifeRPGApp() {
       );
     }
 
-    // VIEW 2: AUTH FORMS (Login or Signup)
     return (
       <div className={`min-h-screen ${bgBase} ${gridPattern} flex items-center justify-center p-4 relative overflow-hidden transition-colors`}>
         <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 ${isDarkMode ? 'bg-cyan-500/10' : 'bg-cyan-400/20'} rounded-full blur-[100px]`} />
@@ -293,11 +311,11 @@ export default function LifeRPGApp() {
                   <label className={`block text-xs font-bold tracking-wider ${textMuted} mb-1.5 ml-1`}>CHOOSE YOUR UNIVERSE</label>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.values(GENRES).map((g) => (
-                      <label key={g.id} className={`flex flex-col items-center gap-1 p-3 rounded-xl border cursor-pointer transition-all ${inputBg} hover:${cardBg} ${cardBorder}`}>
+                      <label key={g.id} className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${inputBg} hover:${cardBg} ${cardBorder}`}>
                         <input type="radio" name="genre" value={g.id} defaultChecked={g.id === 'cyberpunk'} className="sr-only peer" />
-                        <g.icon className={`w-5 h-5 ${textMuted} peer-checked:text-cyan-500`} />
-                        <span className={`text-[10px] font-bold ${textMuted} peer-checked:${textMain}`}>{g.name}</span>
-                        <div className="absolute inset-0 rounded-xl border-2 border-transparent peer-checked:border-cyan-500 pointer-events-none" />
+                        <div className="absolute inset-0 rounded-xl border-2 border-transparent peer-checked:border-cyan-500 peer-checked:bg-cyan-500/10 peer-checked:shadow-[0_0_15px_rgba(6,182,212,0.4)] pointer-events-none transition-all" />
+                        <g.icon className={`w-6 h-6 ${textMuted} peer-checked:text-cyan-500 relative z-10 transition-colors`} />
+                        <span className={`text-[10px] font-bold ${textMuted} peer-checked:${textMain} relative z-10 transition-colors`}>{g.name}</span>
                       </label>
                     ))}
                   </div>
@@ -309,16 +327,26 @@ export default function LifeRPGApp() {
               <input type="email" name="email" required placeholder="operative@domain.com" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} text-sm focus:border-cyan-400 outline-none`} />
             </div>
             <div>
-              <label className={`block text-xs font-bold tracking-wider ${textMuted} mb-1.5 ml-1`}>ACCESS CIPHER (PASSWORD)</label>
+              <label className={`block text-xs font-bold tracking-wider ${textMuted} mb-1.5 ml-1`}>ACCESS CODE (PASSWORD)</label>
               <input type="password" name="password" required placeholder="••••••••" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} text-sm focus:border-cyan-400 outline-none`} />
             </div>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black uppercase tracking-widest mt-4">
-              {authView === 'signup' ? 'Initialize Character' : 'Authenticate Session'}
+            <motion.button 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              disabled={isSubmitting} 
+              type="submit" 
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black uppercase tracking-widest mt-4 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Synchronizing...</>
+              ) : (
+                authView === 'signup' ? 'Create Account' : 'Sign In'
+              )}
             </motion.button>
           </form>
           
           <button onClick={() => { setAuthView(authView === 'signup' ? 'login' : 'signup'); setAuthError(null); }} className={`w-full text-center text-xs ${textMuted} hover:text-cyan-500 transition mt-6 font-bold`}>
-            {authView === 'signup' ? 'Already registered? Access terminal' : 'New operative? Create profile & choose universe'}
+            {authView === 'signup' ? 'Already registered? Sign In' : 'New? Create Profile & Choose Universe'}
           </button>
         </motion.div>
       </div>
@@ -340,7 +368,7 @@ export default function LifeRPGApp() {
 
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* HEADER & SIGN OUT */}
+        {/* HEADER & CONTROLS */}
         <motion.header initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`flex flex-wrap items-center justify-between gap-6 p-4 sm:p-5 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-xl shadow-xl transition-colors`}>
           <div className="flex items-center gap-5">
             <div className={`relative w-14 h-14 rounded-2xl ${inputBg} border ${currentStyle.border} flex items-center justify-center font-black ${currentStyle.accent} text-2xl ${currentStyle.glow}`}>
@@ -376,17 +404,16 @@ export default function LifeRPGApp() {
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </motion.button>
             
-            {/* EXPLICIT SIGN OUT BUTTON */}
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSignOut} className={`px-4 py-2.5 flex items-center gap-2 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} ${textMuted} hover:text-rose-500 transition-colors uppercase tracking-widest text-[10px]`}>
               <LogOut className="w-4 h-4" /> Sign Out
             </motion.button>
           </div>
         </motion.header>
 
-        {/* MAIN GRID */}
+        {/* MAIN DASHBOARD CONTENT */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           
-          {/* LEFT (QUESTS/SHOP) */}
+          {/* LEFT COLUMN: QUESTS & ARMORY */}
           <div className="xl:col-span-2 space-y-6">
             <motion.section initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md shadow-lg`}>
               <div className="flex flex-wrap items-end justify-between gap-4 mb-3">
@@ -405,6 +432,7 @@ export default function LifeRPGApp() {
               <button onClick={() => setActiveTab('shop')} className={`px-6 py-2.5 rounded-2xl text-sm font-black tracking-wider transition-all flex items-center gap-2 ${activeTab === 'shop' ? `${btnInvert} shadow-lg` : `${textMuted} hover:${cardBg} hover:${textMain}`}`}><ShoppingBag className="w-4 h-4" /> THE ARMORY</button>
             </div>
 
+            {/* QUESTS VIEW WITH EMPTY-STATE WATERMARK CONTAINER */}
             {activeTab === 'quests' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -420,43 +448,77 @@ export default function LifeRPGApp() {
                   </motion.button>
                 </div>
 
-                <motion.div variants={containerVars} initial="hidden" animate="show" className="grid gap-3">
-                  {filteredTasks.map(t => (
-                    <motion.div variants={itemVars} key={t.id} className={`p-4 sm:p-5 rounded-2xl border backdrop-blur-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${t.completed ? `${isDarkMode ? 'bg-slate-950/40 border-slate-800/50' : 'bg-slate-100/40 border-slate-200/50'} opacity-50` : `${cardBg} ${cardBorder} hover:${currentStyle.border} hover:-translate-y-0.5`}`}>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black tracking-wider uppercase border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-600'}`}>{activeGenre.stats[t.category]}</span>
-                          <span className={`text-[10px] ${textMuted} font-bold uppercase tracking-widest ${inputBg} px-2 py-0.5 rounded-lg border ${cardBorder}`}>{t.difficulty}</span>
-                          <h3 className={`font-bold text-base sm:text-lg leading-tight ${t.completed ? `line-through ${textMuted}` : textMain}`}>{t.title}</h3>
+                {filteredTasks.length === 0 ? (
+                  /* TACTICAL EMPTY STATE WATERMARK CONTAINER */
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.98 }} 
+                    animate={{ opacity: 1, scale: 1 }} 
+                    className={`p-10 sm:p-14 rounded-3xl border-2 border-dashed ${cardBorder} ${cardBg} backdrop-blur-md flex flex-col items-center justify-center text-center space-y-4 my-2 relative overflow-hidden`}
+                  >
+                    <div className={`absolute w-40 h-40 rounded-full ${isDarkMode ? 'bg-cyan-500/5' : 'bg-cyan-400/10'} blur-3xl pointer-events-none`} />
+
+                    <div className={`relative w-16 h-16 rounded-2xl ${inputBg} border ${cardBorder} flex items-center justify-center shadow-lg z-10`}>
+                      <Target className={`w-8 h-8 ${currentStyle.accent} animate-pulse`} />
+                    </div>
+
+                    <div className="space-y-1.5 max-w-md z-10">
+                      <h3 className={`text-base font-black font-mono tracking-widest uppercase ${textMain}`}>
+                        No Active Contracts Found
+                      </h3>
+                      <p className={`text-xs ${textMuted} leading-relaxed`}>
+                        Your operational buffer is empty. Initialize your first directive above to begin earning XP, building attribute dominance, and banking {activeGenre.currency}.
+                      </p>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setIsAddModalOpen(true)}
+                      className={`px-6 py-3 rounded-xl bg-gradient-to-r ${currentStyle.bar} text-white font-mono font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 z-10 mt-2`}
+                    >
+                      <Plus className="w-4 h-4" /> Deploy First Directive
+                    </motion.button>
+                  </motion.div>
+                ) : (
+                  <motion.div variants={containerVars} initial="hidden" animate="show" className="grid gap-3">
+                    {filteredTasks.map(t => (
+                      <motion.div variants={itemVars} key={t.id} className={`p-4 sm:p-5 rounded-2xl border backdrop-blur-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${t.completed ? `${isDarkMode ? 'bg-slate-950/40 border-slate-800/50' : 'bg-slate-100/40 border-slate-200/50'} opacity-50` : `${cardBg} ${cardBorder} hover:${currentStyle.border} hover:-translate-y-0.5`}`}>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black tracking-wider uppercase border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-300 text-slate-600'}`}>{activeGenre.stats[t.category]}</span>
+                            <span className={`text-[10px] ${textMuted} font-bold uppercase tracking-widest ${inputBg} px-2 py-0.5 rounded-lg border ${cardBorder}`}>{t.difficulty}</span>
+                            <h3 className={`font-bold text-base sm:text-lg leading-tight ${t.completed ? `line-through ${textMuted}` : textMain}`}>{t.title}</h3>
+                          </div>
+                          {t.description && <p className={`text-xs sm:text-sm ${textMuted} font-medium`}>{t.description}</p>}
+                          <div className={`text-[10px] font-black font-mono tracking-widest ${textMuted} flex gap-3 pt-1`}>
+                            <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-cyan-500" /> +{t.xp_reward} XP</span>
+                            <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-amber-500" /> +{t.gold_reward} {activeGenre.currency}</span>
+                          </div>
                         </div>
-                        {t.description && <p className={`text-xs sm:text-sm ${textMuted} font-medium`}>{t.description}</p>}
-                        <div className={`text-[10px] font-black font-mono tracking-widest ${textMuted} flex gap-3 pt-1`}>
-                          <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-cyan-500" /> +{t.xp_reward} XP</span>
-                          <span className="flex items-center gap-1"><Sparkles className="w-3 h-3 text-amber-500" /> +{t.gold_reward} {activeGenre.currency}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!t.completed ? (
+                            <>
+                              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => startTimerForTask(t, 25)} className={`px-3 py-2 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} text-xs font-black font-mono tracking-wider transition-all flex items-center gap-1.5`}>
+                                <Clock className={`w-4 h-4 ${currentStyle.accent}`} /> FOCUS
+                              </motion.button>
+                              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleComplete(t.id)} className={`px-3 py-2 rounded-xl ${isDarkMode ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950' : 'bg-emerald-100 border-emerald-300 text-emerald-600 hover:bg-emerald-500 hover:text-white'} border text-xs font-black font-mono tracking-wider transition-all flex items-center gap-1.5`}>
+                                <CheckCircle2 className="w-4 h-4" /> COMPLETE
+                              </motion.button>
+                            </>
+                          ) : (
+                            <span className={`text-xs font-black font-mono text-emerald-500 flex items-center gap-1.5 px-3 py-2 ${isDarkMode ? 'bg-emerald-950/30 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200'} rounded-xl border`}><CheckCircle2 className="w-4 h-4" /> CLAIMED</span>
+                          )}
+                          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setEditingTask(t)} className={`p-2 rounded-xl ${inputBg} hover:${cardBg} ${textMuted} hover:${textMain} border ${cardBorder}`}><Edit3 className="w-4 h-4" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={async () => { await deleteTask(t.id); await loadData(); }} className={`p-2 rounded-xl ${inputBg} hover:${cardBg} ${textMuted} hover:text-rose-500 border ${cardBorder}`}><Trash2 className="w-4 h-4" /></motion.button>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {!t.completed ? (
-                          <>
-                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => startTimerForTask(t, 25)} className={`px-3 py-2 rounded-xl ${inputBg} hover:${cardBg} border ${cardBorder} text-xs font-black font-mono tracking-wider transition-all flex items-center gap-1.5`}>
-                              <Clock className={`w-4 h-4 ${currentStyle.accent}`} /> FOCUS
-                            </motion.button>
-                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleComplete(t.id)} className={`px-3 py-2 rounded-xl ${isDarkMode ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950' : 'bg-emerald-100 border-emerald-300 text-emerald-600 hover:bg-emerald-500 hover:text-white'} border text-xs font-black font-mono tracking-wider transition-all flex items-center gap-1.5`}>
-                              <CheckCircle2 className="w-4 h-4" /> COMPLETE
-                            </motion.button>
-                          </>
-                        ) : (
-                          <span className={`text-xs font-black font-mono text-emerald-500 flex items-center gap-1.5 px-3 py-2 ${isDarkMode ? 'bg-emerald-950/30 border-emerald-900/50' : 'bg-emerald-50/50 border-emerald-200'} rounded-xl border`}><CheckCircle2 className="w-4 h-4" /> CLAIMED</span>
-                        )}
-                        <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setEditingTask(t)} className={`p-2 rounded-xl ${inputBg} hover:${cardBg} ${textMuted} hover:${textMain} border ${cardBorder}`}><Edit3 className="w-4 h-4" /></motion.button>
-                        <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={async () => { await deleteTask(t.id); await loadData(); }} className={`p-2 rounded-xl ${inputBg} hover:${cardBg} ${textMuted} hover:text-rose-500 border ${cardBorder}`}><Trash2 className="w-4 h-4" /></motion.button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
+            {/* SHOP VIEW */}
             {activeTab === 'shop' && (
               <motion.div variants={containerVars} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {shopItems.map(item => {
@@ -483,7 +545,7 @@ export default function LifeRPGApp() {
             )}
           </div>
 
-          {/* RIGHT COLUMN (STATS / CALENDAR) */}
+          {/* RIGHT COLUMN: ATTRIBUTES & MATRIX */}
           <div className="xl:col-span-1 space-y-6">
             <div className={`p-6 ${cardBg} border ${cardBorder} rounded-3xl backdrop-blur-md shadow-lg`}>
               <h2 className={`text-xs font-black font-mono tracking-widest ${textMuted} mb-5 flex items-center gap-2 uppercase`}><Cpu className="w-4 h-4" /> Attribute Dominance</h2>
@@ -541,7 +603,7 @@ export default function LifeRPGApp() {
         </div>
       </div>
 
-      {/* --- MODAL: ACTIVE FOCUS PROTOCOL (TIMER) --- */}
+      {/* MODAL: FOCUS PROTOCOL TIMER */}
       <AnimatePresence>
         {timerTask && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/80' : 'bg-slate-900/40'} backdrop-blur-md flex items-center justify-center p-4 z-50`}>
@@ -586,11 +648,11 @@ export default function LifeRPGApp() {
         )}
       </AnimatePresence>
 
-      {/* --- MODAL: PROFILE & GENRE SWITCHER --- */}
+      {/* MODAL: PROFILE & GENRE SWITCHER */}
       <AnimatePresence>
         {isProfileModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/80' : 'bg-slate-900/40'} backdrop-blur-md flex items-center justify-center p-4 z-50`}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-8 shadow-2xl`}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-8 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h3 className={`font-mono font-black text-sm tracking-widest ${textMain} uppercase`}>Operative Profile</h3>
                 <button onClick={() => setIsProfileModalOpen(false)} className={`p-2 ${inputBg} hover:${cardBg} rounded-full transition-colors`}><X className={`w-4 h-4 ${textMuted}`} /></button>
@@ -613,7 +675,7 @@ export default function LifeRPGApp() {
         )}
       </AnimatePresence>
 
-      {/* --- MODAL: CREATE QUEST --- */}
+      {/* MODAL: CREATE QUEST */}
       <AnimatePresence>
         {isAddModalOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/60' : 'bg-slate-900/20'} backdrop-blur-sm flex items-center justify-center p-4 z-50`}>
@@ -624,6 +686,7 @@ export default function LifeRPGApp() {
               </div>
               <form onSubmit={async (e) => { e.preventDefault(); const res = await createTask(new FormData(e.currentTarget)); if (res?.error) showFeedback(res.error); setIsAddModalOpen(false); await loadData(); }} className="space-y-4 font-mono text-xs font-bold">
                 <div><label className={`block ${textMuted} mb-2 tracking-widest`}>CONTRACT TITLE</label><input name="title" required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
+                <div><label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label><input name="description" className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={`block ${textMuted} mb-2 tracking-widest`}>ATTRIBUTE</label>
@@ -644,6 +707,53 @@ export default function LifeRPGApp() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* MODAL: EDIT QUEST */}
+      <AnimatePresence>
+        {editingTask && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`fixed inset-0 ${isDarkMode ? 'bg-slate-950/60' : 'bg-slate-900/20'} backdrop-blur-sm flex items-center justify-center p-4 z-50`}>
+            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className={`max-w-md w-full ${cardBg} border ${cardBorder} rounded-3xl p-7 shadow-2xl`}>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className={`font-mono font-black text-sm tracking-widest ${textMain} uppercase`}>Reconfigure Quest</h3>
+                <button onClick={() => setEditingTask(null)} className={`p-2 ${inputBg} hover:${cardBg} rounded-full`}><X className={`w-4 h-4 ${textMuted}`} /></button>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                const res = await updateTask(editingTask.id, fd.get('title') as string, fd.get('description') as string, fd.get('category') as AttributeType, fd.get('difficulty') as DifficultyType);
+                if (res?.error) showFeedback(res.error);
+                setEditingTask(null);
+                await loadData();
+              }} className="space-y-4 font-mono text-xs font-bold">
+                <div>
+                  <label className={`block ${textMuted} mb-2 tracking-widest`}>CONTRACT TITLE</label>
+                  <input name="title" defaultValue={editingTask.title} required className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} />
+                </div>
+                <div>
+                  <label className={`block ${textMuted} mb-2 tracking-widest`}>BRIEF (OPTIONAL)</label>
+                  <input name="description" defaultValue={editingTask.description || ''} className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none`} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block ${textMuted} mb-2 tracking-widest`}>ATTRIBUTE</label>
+                    <select name="category" defaultValue={editingTask.category} className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none appearance-none`}>
+                      <option value="Strength">{activeGenre.stats.Strength}</option><option value="Intellect">{activeGenre.stats.Intellect}</option><option value="Endurance">{activeGenre.stats.Endurance}</option><option value="Vitality">{activeGenre.stats.Vitality}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block ${textMuted} mb-2 tracking-widest`}>DIFFICULTY</label>
+                    <select name="difficulty" defaultValue={editingTask.difficulty} className={`w-full px-4 py-3 ${inputBg} border ${cardBorder} rounded-xl ${textMain} outline-none appearance-none`}>
+                      <option value="Easy">Easy</option><option value="Medium">Medium</option><option value="Hard">Hard</option><option value="Epic">Epic</option>
+                    </select>
+                  </div>
+                </div>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className={`w-full py-4 ${btnInvert} font-black tracking-widest uppercase rounded-xl mt-4 shadow-lg transition-colors`}>Update Contract</motion.button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
