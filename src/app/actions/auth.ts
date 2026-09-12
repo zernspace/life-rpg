@@ -8,13 +8,10 @@ export async function signUp(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const username = formData.get('username') as string;
+  const genre = formData.get('genre') as string || 'cyberpunk';
 
   const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { username },
-    },
+    email, password, options: { data: { username, genre } },
   });
 
   if (error) return { error: error.message };
@@ -27,11 +24,7 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
   revalidatePath('/', 'layout');
   return { success: true };

@@ -16,30 +16,20 @@ export interface Profile {
   vitality: number;
   active_theme: string;
   equipped_badge: string | null;
+  total_focus_time: number;
+  genre: string;
 }
 
 export interface Task {
-  id: string;
-  user_id: string;
-  title: string;
-  description?: string;
-  category: AttributeType;
-  difficulty: DifficultyType;
-  xp_reward: number;
-  gold_reward: number;
-  completed: boolean;
-  completed_at?: string;
-  created_at: string;
+  id: string; user_id: string; title: string; description?: string;
+  category: AttributeType; difficulty: DifficultyType;
+  xp_reward: number; gold_reward: number;
+  completed: boolean; completed_at?: string; created_at: string;
 }
 
 export interface ShopItem {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
+  id: string; name: string; description: string; cost: number;
   type: 'theme' | 'badge' | 'equipment';
-  boost_attribute?: AttributeType;
-  boost_value?: number;
-  value: string;
-  icon: string;
+  boost_attribute?: AttributeType; boost_value?: number;
+  value: string; icon: string;
 }
