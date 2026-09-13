@@ -41,16 +41,16 @@
 
 ## 🌟 Overview
 
-Standard habit trackers and to-do lists frequently suffer from high user drop-off due to rigid streak systems and dry checklists. **Life RPG** solves this by borrowing psychological reward loops from classic role-playing games. 
+**Life RPG** is a habit and task tracker that turns everyday tasks into a simple RPG Style game.
 
-Real-world activities yield experience points (XP), attribute points, and local currency. Users can level up, customize their aesthetic universe, track their focus hours, and spend their currency on mechanical consumables like XP boosters or streak freezes.
+Real world activities earns experience points (XP), attribute points, and local currency. Users can level up, customize their aesthetic universe, track their focus hours, and spend their currency on mechanical consumables like XP boosters or streak freezes.
 
 ---
 
 ## 🚀 Key Features
 
 ### 1. Multi-Genre Universe Engine
-The application adapts its entire theme, terminology, rank ladders, and stat labels according to the universe chosen during signup or changed via settings:
+Each universe has its own entire theme, terminology, rank ladders, and stat labels according to the universe selected by the user:
 
 | Genre | Currency | Attributes Tracked (STR / INT / END / VIT) | Rank Progression |
 | :--- | :--- | :--- | :--- |
@@ -88,11 +88,11 @@ An in-game marketplace where earned currency can be spent on active buffs:
 ## 📐 Game Mechanics & Mathematics
 
 ### Level-Up Curve
-Leveling requirements scale non-linearly to simulate traditional RPG pacing:
+The amount of XP needed to level up increases with each level.:
 
 $$\text{Required XP} = \lfloor 100 \times \text{Level}^{1.5} \rfloor$$
 
-When a user's current XP exceeds the required threshold, the backend consumes the threshold amount, increments the level, and checks again via an internal loop to handle multi-level jumps.
+When a user's current XP exceeds the required threshold, the backend consumes the threshold amount, increases the level, and checks again via an internal loop to handle multilevel jumps.
 
 ### Reward Mapping
 
