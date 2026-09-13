@@ -189,10 +189,14 @@ export default function LifeRPGApp() {
       const username = fd.get('username') as string;
       const genre = fd.get('genre') as string || 'cyberpunk';
 
-      // 1. Execute directly on the client. Bypasses Vercel's serverless timeout completely.
-      const { error } = authView === 'signup' 
+      let { error } = authView === 'signup' 
         ? await supabase.auth.signUp({ email, password, options: { data: { username, genre } } })
         : await supabase.auth.signInWithPassword({ email, password });
+
+      if (!error && authView === 'signup') {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+        error = signInErr;
+      }
 
       if (error) { 
         if (error.message.includes('Database error saving new user')) {
@@ -202,7 +206,10 @@ export default function LifeRPGApp() {
         }
         setIsSubmitting(false); 
       } else { 
-        window.location.reload(); 
+        setAuthError('Synchronizing... Entering dashboard.');
+        setTimeout(() => {
+          window.location.reload(); 
+        }, 1000);
       }
     } catch (err: any) { 
       setAuthError(err.message || 'Authentication failed'); 
