@@ -6,7 +6,7 @@
 **Gamify your daily tasks into epic quests.**
 
 **Website Link:** [https://life-rpg-zern2.vercel.app/](https://life-rpg-zern2.vercel.app/)  
-**Demo Video:** [Watch Walkthrough Video](https://your-video-link-here)
+**Demo Video:** [Watch Walkthrough Video](https://drive.google.com/file/d/16etlcLF0Sz7lM5s98ja6WayUKqTqIwdr/view?usp=sharing)
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
