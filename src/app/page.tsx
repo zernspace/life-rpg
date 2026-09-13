@@ -195,7 +195,11 @@ export default function LifeRPGApp() {
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (error) { 
-        setAuthError(error.message); 
+        if (error.message.includes('Database error saving new user')) {
+          setAuthError('This Operative Handle is already taken. Choose another.');
+        } else {
+          setAuthError(error.message); 
+        }
         setIsSubmitting(false); 
       } else { 
         window.location.reload(); 
